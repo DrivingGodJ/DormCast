@@ -15,6 +15,7 @@ Validated on Windows x64 with real VB-CABLE and a physical output endpoint. Brow
 | 后台主机补偿 / host background compensation | 网页应用计时器及应用信令回调停用约 190 秒，播放持续；受控慢路径令目标 250→750→250ms、该连接补偿约 149→649→149ms / Playback continued for about 190s with page timers and app message handling disabled; controlled slow-path rise and automatic fall passed |
 | 五条浏览器连接 / five browser peers | 同机五条真实 Opus/WebRTC 连接建立，单连接退出不影响其他连接；这不是五台物理设备 / Five real local-browser peers connected; one leaving preserved the others; not five physical devices |
 | 完整固定链接 / persistent full join URL | 旧链接迁移、备份恢复、机器区分、启停重启通过 / Migration, backup, machine separation and restart passed |
+| 0.5.3 双接入 / parallel access | 默认 mDNS、IPv4 来回切换，原生窗口两种二维码解码、显示网址和复制内容一致；mDNS 与 IPv4 两条浏览器 WebRTC 连接同时接收，切换后未重连、收包持续；IPv4 网页资源没有请求 .local / Default mDNS, native QR decoding and copy consistency passed; simultaneous mDNS/IPv4 WebRTC peers continued receiving without reconnects, and the IPv4 page requested no .local HTTP resources |
 | 更新保护 / update verification | 版本比较、预发布排除、外部地址拒绝、正确 SHA-256、损坏/取消清理通过 / Version and download checks passed |
 | 匿名限流 / anonymous rate limit | 403 限流自动转向 Release 内更新信息的检查通过 / Automatic fallback to the public Release manifest passed |
 | 实际在线更新下载 / live update download | 在真实匿名 API 403 限流下，成功读取 Release 更新信息、比较版本并完整下载官方安装包，通过 SHA-256；未自动启动安装器 / Actual anonymous 403 fallback, version comparison and full verified installer download passed; installer launch was not exercised |

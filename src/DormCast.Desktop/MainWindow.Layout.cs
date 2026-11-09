@@ -17,7 +17,9 @@ public sealed partial class MainWindow
     readonly ComboBox _nic = new() { Header = "局域网卡", HorizontalAlignment = HorizontalAlignment.Stretch }, _frame = new() { Header = "音频帧", HorizontalAlignment = HorizontalAlignment.Stretch };
     readonly NumberBox _port = new() { Header = "端口", Minimum = 1024, Maximum = 65535, SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Compact };
     readonly Slider _slider = new() { Minimum = 0, Maximum = 100, StepFrequency = 1, IsEnabled = false };
-    readonly Button _start = ActionButton("开始广播", true), _copy = ActionButton("复制固定链接"), _copyIp = ActionButton("IP 备用"), _settings = ActionButton("同步设置"), _refresh = ActionButton("刷新网卡"), _update = ActionButton("检查更新");
+    readonly RadioButtons _joinMode = new() { Header = "接入方式（同时可用）", MaxColumns = 2, Items = { "mDNS 固定", "IPv4 兼容" }, SelectedIndex = 0, IsEnabled = false };
+    readonly TextBlock _joinHint = Label("默认显示可收藏的固定链接。手机打不开时可选 IPv4 兼容。", 12);
+    readonly Button _start = ActionButton("开始广播", true), _copy = ActionButton("复制当前链接"), _settings = ActionButton("同步设置"), _refresh = ActionButton("刷新网卡"), _update = ActionButton("检查更新");
     static SolidColorBrush Brush(byte r, byte g, byte b) => new(ColorHelper.FromArgb(255, r, g, b));
     static TextBlock Label(string text, double size) => new() { Text = text, FontSize = size, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
     static StackPanel Stack(params UIElement[] children) { var panel = new StackPanel { Spacing = 12 }; foreach (var child in children) panel.Children.Add(child); return panel; }
@@ -38,8 +40,8 @@ public sealed partial class MainWindow
         var volumeHeader = Columns(1, 0.2); Cell(volumeHeader, Label("系统与广播音量", 18), 0); _percent.HorizontalAlignment = HorizontalAlignment.Right; Cell(volumeHeader, _percent, 1); AutomationProperties.SetName(_slider, "系统与广播统一音量");
         var coverBox = new Grid { Width = 190, Height = 190, Background = Brush(38, 49, 40), CornerRadius = new CornerRadius(12) }; _coverFallback.HorizontalAlignment = HorizontalAlignment.Center; coverBox.Children.Add(_coverFallback); coverBox.Children.Add(_cover);
         var music = new Grid { ColumnSpacing = 24 }; music.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); music.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); Cell(music, coverBox, 0); _song.FontWeight = Microsoft.UI.Text.FontWeights.SemiBold; Cell(music, Stack(Label("主机正在播放", 12), _song, _artist, _album), 1); Cell(hero, Card(Stack(music, _capture, volumeHeader, _slider, _speaker)), 0);
-        var shareButtons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12 }; shareButtons.Children.Add(_copy); shareButtons.Children.Add(_copyIp);
-        Cell(hero, Card(Stack(Label("扫码，一起听", 20), new Border { Child = _qr, Background = Brush(255, 255, 255), CornerRadius = new CornerRadius(8), Padding = new Thickness(8), HorizontalAlignment = HorizontalAlignment.Center }, _url, shareButtons)), 1); content.Children.Add(hero);
+        AutomationProperties.SetName(_joinMode, "链接与二维码的展示方式，两种接入方式始终同时有效");
+        Cell(hero, Card(Stack(Label("扫码，一起听", 20), _joinMode, new Border { Child = _qr, Background = Brush(255, 255, 255), CornerRadius = new CornerRadius(8), Padding = new Thickness(8), HorizontalAlignment = HorizontalAlignment.Center }, _url, _copy, _joinHint)), 1); content.Children.Add(hero);
         var config = Columns(1.2, 1.5, 0.7, 1.05); Cell(config, _name, 0); Cell(config, _nic, 1); Cell(config, _port, 2); Cell(config, _frame, 3);
         var startRow = Columns(1, 1); Cell(startRow, Stack(_network, _refresh), 0); _start.HorizontalAlignment = HorizontalAlignment.Stretch; _start.FontSize = 18; _start.MinHeight = 56; Cell(startRow, _start, 1); content.Children.Add(Card(Stack(config, startRow)));
         var metrics = Columns(1, 1); Cell(metrics, Stack(Label("正在收听", 13), _listeners), 0); Cell(metrics, Stack(Label("统一延迟目标", 13), _sync), 1); content.Children.Add(Card(metrics));

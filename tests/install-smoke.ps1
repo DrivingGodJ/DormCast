@@ -1,4 +1,4 @@
-param([string]$Version = '0.5.2')
+param([string]$Version = '0.5.3')
 $ErrorActionPreference = 'Stop'
 $workspace = (Resolve-Path -LiteralPath '.').Path
 $installPath = [IO.Path]::GetFullPath((Join-Path $workspace '.research/installer-smoke'))

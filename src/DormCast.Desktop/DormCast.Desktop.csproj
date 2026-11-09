@@ -16,7 +16,7 @@
     <Nullable>enable</Nullable>
     <AssemblyName>DormCast</AssemblyName>
     <RootNamespace>DormCast.Desktop</RootNamespace>
-    <Version>0.5.2</Version>
+    <Version>0.5.3</Version>
     <ApplicationIcon>..\DormCast\Assets\dormcast.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>

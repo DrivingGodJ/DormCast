@@ -9,7 +9,6 @@ using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media.Imaging;
-using QRCoder;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.Graphics;
 using Windows.Storage.Streams;
@@ -31,7 +30,7 @@ public sealed partial class MainWindow : Window
     string? _coverRevision;
     public MainWindow()
     {
-        Title = "宿舍之音 · DormCast 0.5.2 · WinUI 3";
+        Title = "宿舍之音 · DormCast 0.5.3 · WinUI 3";
         _window = WinRT.Interop.WindowNative.GetWindowHandle(this);
         AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "dormcast.ico"));
         var scale = GetDpiForWindow(_window) / 96.0;
@@ -45,11 +44,12 @@ public sealed partial class MainWindow : Window
         _tray = new NativeTray(_window, DispatcherQueue, ShowMain, StopAsync, ExitAsync);
         AppWindow.Closing += (_, e) => { if (!_exiting) { e.Cancel = true; AppWindow.Hide(); } };
         _start.Click += async (_, _) => { if (_host.Running) await StopAsync(); else await StartAsync(); };
-        _copy.Click += (_, _) => Copy(_host.JoinUrl); _copyIp.Click += (_, _) => Copy(_host.IpJoinUrl);
+        _copy.Click += (_, _) => Copy(DisplayedJoinUrl);
+        _joinMode.SelectionChanged += async (_, e) => { if (e.AddedItems.Count > 0) await SwitchJoinModeAsync(Equals(e.AddedItems[0], _joinMode.Items[1])); };
         _refresh.Click += async (_, _) => await RefreshNetworkAsync(); _settings.Click += async (_, _) => await SettingsAsync(); _update.Click += async (_, _) => await CheckUpdateAsync();
         _slider.ValueChanged += (_, _) => { if (_presenting || !_slider.IsEnabled) return; _lastInput = Stopwatch.GetTimestamp(); _percent.Text = $"{_slider.Value:0}%"; _volume.RequestLevel((float)_slider.Value / 100); };
         _timer = DispatcherQueue.CreateTimer(); _timer.Interval = TimeSpan.FromMilliseconds(500); _timer.Tick += async (_, _) => await TickAsync(); _timer.Start();
-        _copy.IsEnabled = _copyIp.IsEnabled = false; _ = InitializeAsync();
+        _copy.IsEnabled = false; _ = InitializeAsync();
     }
     async Task InitializeAsync()
     {
@@ -78,6 +78,7 @@ public sealed partial class MainWindow : Window
     {
         _busy = value; foreach (var control in new Control[] { _name, _nic, _frame, _port, _settings, _refresh }) control.IsEnabled = !value && !_host.Running;
         _start.IsEnabled = !value; _start.Content = value ? "正在处理…" : _host.Running ? "停止广播" : "开始广播";
+        _joinMode.IsEnabled = _copy.IsEnabled = !value && _host.Running;
     }
     async Task StartAsync()
     {
@@ -86,9 +87,8 @@ public sealed partial class MainWindow : Window
         {
             var options = _options with { Name = _name.Text.Trim(), Port = (int)_port.Value, FrameMs = _frame.SelectedIndex == 1 ? 10 : 20 }; options.Validate();
             await Task.Run(async () => { options.Save(); await _host.StartAsync(options, nic); }); _options = options;
-            _url.Text = _host.JoinUrl; _copy.IsEnabled = _copyIp.IsEnabled = true;
-            using var code = QRCodeGenerator.GenerateQrCode(_host.JoinUrl!, QRCodeGenerator.ECCLevel.M); using var png = new PngByteQRCode(code); _qr.Source = await DecodeAsync(png.GetGraphic(6), 368);
-            _tray.SetBroadcasting(true); _state.Text = "● 正在广播"; _detail.Text = "固定链接可以收藏。关闭窗口会隐藏到托盘。";
+            _useIpv4Join = false; _joinMode.SelectedIndex = 0; await RefreshJoinAsync();
+            _tray.SetBroadcasting(true); _state.Text = "● 正在广播"; _detail.Text = "mDNS 与 IPv4 始终同时可用。关闭窗口会隐藏到托盘。";
         }
         catch (Exception ex) { _detail.Text = $"无法开始广播：{ex.Message}"; AppLog.Write("Start failed", ex); }
         finally { SetBusy(false); }
@@ -98,7 +98,7 @@ public sealed partial class MainWindow : Window
         if (_busy && !_exiting) return; SetBusy(true);
         try { await Task.Run(async () => await _host.StopAsync()); _detail.Text = "广播已结束，固定链接下次仍可使用。"; }
         catch (Exception ex) { _detail.Text = ex.Message; AppLog.Write("Stop failed", ex); }
-        finally { _tray.SetBroadcasting(false); _state.Text = "未广播"; _copy.IsEnabled = _copyIp.IsEnabled = false; _qr.Source = null; SetBusy(false); }
+        finally { _tray.SetBroadcasting(false); _state.Text = "未广播"; _qr.Source = null; _url.Text = "广播已结束，下次仍可使用固定链接。"; SetBusy(false); }
     }
     async Task TickAsync()
     {

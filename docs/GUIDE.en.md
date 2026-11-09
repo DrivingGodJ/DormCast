@@ -4,7 +4,7 @@
 
 ## Installation
 
-Requires Windows 10 22H2 or Windows 11 x64. Install `DormCast-0.5.2-Setup-x64.exe` from Releases for the current user. The package includes .NET, WinUI and the native runtime files. The portable ZIP also works when fully extracted; copying only the EXE does not. The installer is not code-signed.
+Requires Windows 10 22H2 or Windows 11 x64. Install `DormCast-0.5.3-Setup-x64.exe` from Releases for the current user. The package includes .NET, WinUI and the native runtime files. The portable ZIP also works when fully extracted; copying only the EXE does not. The installer is not code-signed.
 
 Synchronized host playback requires a virtual cable to separate the original signal from the delayed physical output. The installer has a dedicated preparation page and can open the `Drivers` folder when finished. The app also explains these steps when no virtual endpoint is detected:
 
@@ -26,7 +26,7 @@ In virtual-cable host playback mode, the Windows default endpoint volume, physic
 
 Each host has a stable `.local` name and random 256-bit join credential. New host names use a one-way digest of the Windows installation identity; phone MAC addresses are not collected. Browser access restrictions and randomized MACs make them unsuitable for this identity. Existing links migrate unchanged. Records are stored in `%LOCALAPPDATA%/DormCast/join-identity.json` and backed up under the current user's `HKCU/Software/DrivingGodJ/DormCast/Identity`. Reinstallation preserves both, and the backup recovers deleted app data. Reinstalling Windows, changing users or deleting both records cannot preserve the same full link.
 
-The `.local` address uses LAN mDNS and is republished after changing adapters or IP addresses and restarting the broadcast. Some Android, enterprise Wi-Fi and multicast-blocking networks require the IP fallback. Keep the same port to preserve the complete URL. Share credential-bearing links only with trusted listeners.
+The `.local` address uses LAN mDNS and is republished after changing adapters or IP addresses and restarting the broadcast. The host selects fixed mDNS by default. For Huawei phones or networks that cannot resolve it, choose IPv4 compatibility in the join-method selector: the URL, QR code and copy button all use the literal IPv4 address without hostname resolution. Both entry points stay active simultaneously, switching the display disconnects nobody, and listeners can mix the two methods in the same broadcast. IPv4 links change when the computer's IP changes, so rescan after changing networks. Keep the same port to preserve the full mDNS URL. Share credential-bearing links only with trusted listeners.
 
 The server binds the chosen private IPv4 address and filters HTTP/WebSocket sources to the same subnet. WebRTC uses that interface with no external STUN/TURN or port mapping. DTLS-SRTP protects audio; the HTTP page and signaling do not use TLS. Use a trusted LAN.
 

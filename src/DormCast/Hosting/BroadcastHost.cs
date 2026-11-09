@@ -74,7 +74,7 @@ public sealed class BroadcastHost : IAsyncDisposable
     }
     public string Diagnostics() => JsonSerializer.Serialize(new
     {
-        version = "0.5.2", utc = DateTimeOffset.UtcNow, running = Running,
+        version = "0.5.3", utc = DateTimeOffset.UtcNow, running = Running,
         endpoint = _server?.BaseUrl, fixedHost = JoinIdentity.Persistent.HostName, addressStatus = AddressStatus, nowPlaying = NowPlaying,
         audio = _audio?.Snapshot(), clients = Clients, synchronization = SyncState, hostPlayback = _monitor?.Snapshot(),
         latencyNote = "RTT / jitter / jitterBuffer are not measured acoustic end-to-end latency."
