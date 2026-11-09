@@ -4,7 +4,8 @@ using NAudio.CoreAudioApi;
 namespace DormCast.Audio;
 
 // VB-CABLE loopback is pre-endpoint-volume. Mirror the Windows default (virtual)
-// endpoint and the physical speaker, then apply its dB gain before network encoding.
+// endpoint and the physical speaker. Network gain follows the shared percentage;
+// a particular speaker's dB taper can otherwise make independent receivers too quiet.
 public sealed class BroadcastVolumeLink(AudioEngine audio, string captureId, string outputId) : IDisposable
 {
     readonly CancellationTokenSource _stop = new();
@@ -33,7 +34,7 @@ public sealed class BroadcastVolumeLink(AudioEngine audio, string captureId, str
                         else if (Math.Abs(fromSpeaker - level) > 0.0005f || speakerMute != muted)
                         { s.MasterVolumeLevelScalar = fromSpeaker; s.Mute = speakerMute; }
                         level = s.MasterVolumeLevelScalar; muted = s.Mute;
-                        audio.SetMasterGain(muted ? 0 : GainFromDb(p.MasterVolumeLevel));
+                        audio.SetMasterGain(NetworkGain(level, muted));
                     } while (!_stop.Token.WaitHandle.WaitOne(50));
                 }
                 finally
@@ -46,6 +47,6 @@ public sealed class BroadcastVolumeLink(AudioEngine audio, string captureId, str
             catch (Exception ex) { AppLog.Write("Broadcast volume endpoint retry", ex); _stop.Token.WaitHandle.WaitOne(1000); }
         }
     }
-    public static float GainFromDb(float db) => float.IsFinite(db) ? (float)Math.Clamp(Math.Pow(10, db / 20.0), 0, 1) : 0;
+    public static float NetworkGain(float level, bool muted) => muted || !float.IsFinite(level) ? 0 : Math.Clamp(level, 0, 1);
     public void Dispose() { _stop.Cancel(); _worker?.Join(); _stop.Dispose(); }
 }

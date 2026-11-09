@@ -35,7 +35,8 @@ static class FeatureChecks
         var hold = new HostCompensation(); hold.SetDesired(160); Check(hold.AppliedMs == 160, "initial sender hold is seeded before the client becomes audible"); hold.SetDesired(20);
         for (var t = 0; t <= 8000; t += 50) hold.Advance(t);
         Check(Math.Abs(hold.AppliedMs - 20) < 0.1, "sender compensation decreases without browser timers");
-        Check(Math.Abs(BroadcastVolumeLink.GainFromDb(-20) - 0.1) < 0.00001 && BroadcastVolumeLink.GainFromDb(float.NegativeInfinity) == 0, "broadcast gain uses Windows endpoint dB, including silence");
+        Check(BroadcastVolumeLink.NetworkGain(0.14f, false) == 0.14f && BroadcastVolumeLink.NetworkGain(0.5f, false) == 0.5f && BroadcastVolumeLink.NetworkGain(1, false) == 1, "network amplitude follows Windows percentage without importing the physical speaker's dB taper");
+        Check(BroadcastVolumeLink.NetworkGain(0.7f, true) == 0 && BroadcastVolumeLink.NetworkGain(0, false) == 0 && BroadcastVolumeLink.NetworkGain(float.NaN, false) == 0 && BroadcastVolumeLink.NetworkGain(2, false) == 1, "network mute and gain bounds prevent unintended amplification");
         Directory.CreateDirectory("test-results/v0.5"); File.WriteAllText("test-results/v0.5/stable-delay.json", JsonSerializer.Serialize(trace));
         await UpdateChecks();
     }

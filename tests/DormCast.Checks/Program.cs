@@ -30,6 +30,8 @@ if (args.Contains("--devices"))
     return;
 }
 if (args.Contains("--volume-link-check")) { await VolumeLinkChecks.RunAsync(MakeStimulus(3)); return; }
+if (args.Contains("--feature-checks")) { await FeatureChecks.RunAsync(); return; }
+if (args.Contains("--volume-gain-check")) { await VolumeGainChecks.RunAsync(args.Contains("--stimulus") ? MakeStimulus(4) : null); return; }
 if (args.Contains("--github-release-check"))
 {
     using var updater = new DormCast.Updates.GitHubReleaseClient();

@@ -9,6 +9,7 @@ Validated on Windows x64 with real VB-CABLE and a physical output endpoint. Brow
 | 真实 WASAPI → 48kHz stereo Opus 10/20ms → 解码 / real capture and decode | 通过，非零 PCM、连续 RTP 时间线 / Passed, nonzero PCM and monotonic RTP |
 | 系统音量 ↔ 实际扬声器 / system ↔ physical volume | 双向联动通过，短暂测试后恢复 / Passed in both directions, restored afterward |
 | 虚拟端点静音后的网络音频 / network mute | 实际编码输出静音，本地未衰减音频仍存在 / Passed, local unscaled signal remains available |
+| 0.5.2 传输响度 / network volume | Windows 14% 时，经真实 WASAPI 回采、Opus 编解码得到网络/本地振幅比约 0.140，未改变端点音量；这是数字幅度比，不是手机声学响度 / At Windows 14%, real loopback and Opus yielded about 0.140 network/local amplitude ratio without changing endpoint volume; this is not a phone loudness measurement |
 | 稳定目标 / stable target | 噪声不改变 250ms 目标；持续慢路径升到 400ms；退出后稳定 60 秒回落到 250ms / Deterministic trace passed |
 | 目标过渡 / target transition | 执行目标变化不超过每秒 20ms / Deterministic bound passed |
 | 后台主机补偿 / host background compensation | 网页应用计时器及应用信令回调停用约 190 秒，播放持续；受控慢路径令目标 250→750→250ms、该连接补偿约 149→649→149ms / Playback continued for about 190s with page timers and app message handling disabled; controlled slow-path rise and automatic fall passed |
