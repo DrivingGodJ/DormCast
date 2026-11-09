@@ -1,0 +1,13 @@
+.tools/
+.research/
+**/bin/
+**/obj/
+artifacts/
+.vs/
+*.user
+test-results/
+docs/evidence*/
+docs/test-report.md
+docs/sync-test-report.md
+docs/features-test-report.md
+docs/winui-test-report.md

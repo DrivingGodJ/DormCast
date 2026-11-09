@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="color-scheme" content="dark"><title>宿舍之音 · 一起听</title>
+  <meta name="apple-mobile-web-app-title" content="宿舍之音"><meta name="theme-color" content="#101612">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png"><link rel="icon" type="image/png" sizes="64x64" href="/favicon.png"><link rel="manifest" href="/manifest.webmanifest">
+  <link rel="stylesheet" href="/style.css"><script src="/sync.js" defer></script><script src="/media.js" defer></script><script src="/app.js" defer></script>
+</head>
+<body>
+  <main>
+    <header>
+      <a href="/" aria-label="宿舍之音首页" class="brand"><svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="3"/><path d="M9 9a10 10 0 0 0 0 14M23 9a10 10 0 0 1 0 14M5 5a16 16 0 0 0 0 22M27 5a16 16 0 0 1 0 22"/></svg><span>宿舍之音<small>DORMCAST</small></span></a>
+      <span class="local"><span></span>局域网直连</span>
+    </header>
+    <section class="player" aria-labelledby="song">
+      <div class="artwork-panel"><div class="record" id="record" aria-hidden="true"><div class="groove"><svg viewBox="0 0 80 80"><circle cx="40" cy="40" r="28"/><circle cx="40" cy="40" r="18"/><circle cx="40" cy="40" r="4"/></svg></div><img id="artwork" alt="" width="640" height="640" hidden></div><span class="art-caption">同一间宿舍 · 同一个此刻</span></div>
+      <div class="player-body">
+        <div class="status"><span id="dot"></span><span id="connection" role="status" aria-live="polite">准备连接</span></div>
+        <p class="eyebrow" id="title">宿舍之音</p>
+        <h1 id="song">正在广播系统声音</h1><p id="artist" class="artist">等待 Windows 媒体信息</p><p id="album" class="album"></p>
+        <div class="player-actions"><p id="message" class="message">正在寻找这间宿舍的声音…</p><button id="listen" class="primary" type="button">开始收听 ↗</button></div>
+        <div class="live-line"><span class="live-bars" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span>LIVE AUDIO</span><span>48kHz · Stereo</span></div>
+      </div>
+    </section>
+    <div class="information">
+      <section class="quality" aria-label="网络质量">
+        <div><span>网络往返</span><strong id="rtt">—</strong></div><div><span>接收缓冲</span><strong id="buffer">—</strong></div><div><span>区间丢包</span><strong id="loss">—</strong></div>
+      </section>
+      <section class="sync-card" aria-label="统一同步"><div class="sync-heading"><span>统一延迟目标</span><strong id="groupTarget">测量中</strong></div><p id="syncStatus">正在校准源时间线与本机时钟。</p><p id="syncDetail">主机会按最慢设备分配统一延迟。</p></section>
+    </div>
+    <details><summary>连接详情与同步调节 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary><div class="details-body">
+      <p id="tech">Opus · 48kHz · 立体声 · 局域网直连</p>
+      <label class="background-option"><input id="backgroundMode" type="checkbox">后台兼容播放（推荐手机）</label>
+      <p id="backgroundHelp">首次点击收听后可以切后台。系统若暂停网页，返回后点继续收听。</p>
+      <div class="hardware-option"><label for="hardwareOffset">额外硬件延迟（蓝牙等）</label><div><input id="hardwareOffset" type="number" min="0" max="1000" step="10" value="0" inputmode="numeric"><span>ms</span></div></div>
+      <p id="bufferSupport">正在检查浏览器缓冲调节能力。</p><p id="clock">时钟探测等待连接。</p>
+      <p>补偿由主机持续调度，后台不依赖网页定时器。返回前台会重新校准实际播放信息。蓝牙和后台媒体输出可能有未报告的额外缓冲；这里的数值是软件估计。</p>
+      <button id="reconnect" class="secondary" type="button">重新连接到实时位置</button>
+    </div></details>
+    <footer><span>声音留在局域网</span><span>无需账号 · 无需安装</span></footer>
+  </main>
+</body></html>
