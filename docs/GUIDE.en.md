@@ -4,7 +4,7 @@
 
 ## Installation
 
-Requires Windows 10 22H2 or Windows 11 x64. Install `DormCast-0.5.0-Setup-x64.exe` from Releases for the current user. The package includes .NET, WinUI and the native runtime files. The portable ZIP also works when fully extracted; copying only the EXE does not. The installer is not code-signed.
+Requires Windows 10 22H2 or Windows 11 x64. Install `DormCast-0.5.1-Setup-x64.exe` from Releases for the current user. The package includes .NET, WinUI and the native runtime files. The portable ZIP also works when fully extracted; copying only the EXE does not. The installer is not code-signed.
 
 Synchronized host playback requires a virtual cable to separate the original signal from the delayed physical output. The installer has a dedicated preparation page and can open the `Drivers` folder when finished. The app also explains these steps when no virtual endpoint is detected:
 
@@ -47,6 +47,8 @@ Phones default to a media-element background output with MediaSession support. S
 Click the host's update button to anonymously check the latest stable GitHub Release in `DrivingGodJ/DormCast` and compare numeric versions. Internet access happens only for explicit update checks/downloads; audio stays on the LAN. The update dialog explains that broadcasting will stop. Download and update verifies the x64 installer's declared size and SHA-256 digest; cancellation and failed verification remove incomplete files. A Windows helper waits for DormCast to fully exit, verifies the file again and opens the installer. Settings and identity survive upgrades. Older Releases lacking digest metadata require manual download. If organizational policy blocks the helper or GitHub is unavailable, install manually from the official Releases page.
 
 ## Development and publishing
+
+If GitHub's anonymous API is rate-limited or temporarily unreachable, the app automatically reads `update.json` from the latest stable Release. It uses the same validated version, fixed repository URL, size and SHA-256 fields, with no personal token. The build generates this document after creating the installer; upload it with every Release.
 
 `src/DormCast/Audio` owns capture, encoding, local playback and volume; `Synchronization` owns delay estimation; `Transport` owns WebRTC scheduling; `Networking` owns HTTP, signaling, mDNS and identity; `Updates` owns GitHub checks; `wwwroot` is the browser client. `src/DormCast.Desktop` contains WinUI and tray code. `scripts` builds/packages and `tests` verifies behavior.
 

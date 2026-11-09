@@ -48,6 +48,8 @@ static class FeatureChecks
         Check(GitHubReleaseClient.Parse(Encoding.UTF8.GetBytes(Release(prerelease: true)), new Version(0, 4, 0)) == null, "automatic updater ignores prereleases");
         try { GitHubReleaseClient.Parse(Encoding.UTF8.GetBytes(Release("https://example.com/bad.exe")), new Version(0, 4, 0)); throw new Exception("Foreign asset accepted"); } catch (InvalidDataException) { Console.WriteLine("PASS foreign update URL rejected"); }
         using var http = new HttpClient(new FixtureHandler(payload)); using var client = new GitHubReleaseClient(http);
+        using var limitedHttp = new HttpClient(new RateLimitHandler(Encoding.UTF8.GetBytes(Release()))); using var limitedClient = new GitHubReleaseClient(limitedHttp);
+        Check((await limitedClient.CheckAsync(new Version(0, 4, 0)))?.Version == new Version(0, 5, 0), "anonymous API rate limit falls back to the public Release manifest");
         var directory = Path.GetFullPath("test-results/v0.5/update-fixtures"); var path = await client.DownloadAsync(update, directory);
         Check(File.ReadAllBytes(path).SequenceEqual(payload), "downloaded installer bytes pass SHA-256 verification"); File.Delete(path);
         try { await client.DownloadAsync(update with { Sha256 = new string('0', 64) }, directory); throw new Exception("Bad hash accepted"); } catch (InvalidDataException) { Check(!Directory.EnumerateFiles(directory).Any(), "hash mismatch removes the incomplete update"); }
@@ -56,4 +58,6 @@ static class FeatureChecks
     }
     sealed class FixtureHandler(byte[] bytes) : HttpMessageHandler
     { protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct) { ct.ThrowIfCancellationRequested(); return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(bytes), RequestMessage = request }); } }
+    sealed class RateLimitHandler(byte[] json) : HttpMessageHandler
+    { protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct) => Task.FromResult(new HttpResponseMessage(request.RequestUri!.Host == "api.github.com" ? HttpStatusCode.Forbidden : HttpStatusCode.OK) { Content = new ByteArrayContent(json), RequestMessage = request }); }
 }

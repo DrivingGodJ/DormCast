@@ -31,7 +31,7 @@ public sealed partial class MainWindow : Window
     string? _coverRevision;
     public MainWindow()
     {
-        Title = "宿舍之音 · DormCast 0.5.0 · WinUI 3";
+        Title = "宿舍之音 · DormCast 0.5.1 · WinUI 3";
         _window = WinRT.Interop.WindowNative.GetWindowHandle(this);
         AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "dormcast.ico"));
         var scale = GetDpiForWindow(_window) / 96.0;

@@ -18,18 +18,28 @@ public sealed class GitHubReleaseClient : IDisposable
     { _ownsClient = http == null; _http = http ?? new HttpClient { Timeout = Timeout.InfiniteTimeSpan }; }
     public async Task<ReleaseUpdate?> CheckAsync(Version current, CancellationToken ct = default)
     {
+        try { return Parse(await ReadLatestAsync("https://api.github.com/repos/" + Repository + "/releases/latest", current, true, ct).ConfigureAwait(false), current); }
+        catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound) { return null; }
+        catch (Exception ex) when (!ct.IsCancellationRequested && ex is HttpRequestException or TaskCanceledException)
+        {
+            // A shared public IP can exhaust GitHub's anonymous REST quota. Each stable Release
+            // also carries this small, HTTPS-delivered document with the same validated asset fields.
+            return Parse(await ReadLatestAsync("https://github.com/" + Repository + "/releases/latest/download/update.json", current, false, ct).ConfigureAwait(false), current);
+        }
+    }
+    async Task<byte[]> ReadLatestAsync(string url, Version current, bool api, CancellationToken ct)
+    {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct); timeout.CancelAfter(TimeSpan.FromSeconds(25));
-        using var request = new HttpRequestMessage(HttpMethod.Get, "https://api.github.com/repos/" + Repository + "/releases/latest");
-        request.Headers.UserAgent.ParseAdd("DormCast/" + current); request.Headers.Accept.ParseAdd("application/vnd.github+json");
-        request.Headers.Add("X-GitHub-Api-Version", "2026-03-10");
+        using var request = new HttpRequestMessage(HttpMethod.Get, url);
+        request.Headers.UserAgent.ParseAdd("DormCast/" + current); request.Headers.Accept.ParseAdd(api ? "application/vnd.github+json" : "application/json");
+        if (api) request.Headers.Add("X-GitHub-Api-Version", "2026-03-10");
         using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token).ConfigureAwait(false);
-        if (response.StatusCode == HttpStatusCode.NotFound) return null;
         response.EnsureSuccessStatusCode();
         using var input = await response.Content.ReadAsStreamAsync(timeout.Token).ConfigureAwait(false);
         using var output = new MemoryStream(); var buffer = new byte[16384]; int read;
         while ((read = await input.ReadAsync(buffer, timeout.Token).ConfigureAwait(false)) != 0)
         { if (output.Length + read > 1024 * 1024) throw new InvalidDataException("更新信息过大。"); output.Write(buffer, 0, read); }
-        return Parse(output.ToArray(), current);
+        return output.ToArray();
     }
     public static ReleaseUpdate? Parse(ReadOnlyMemory<byte> json, Version current)
     {

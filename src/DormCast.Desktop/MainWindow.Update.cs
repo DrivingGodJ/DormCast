@@ -14,7 +14,7 @@ public sealed partial class MainWindow
         try
         {
             using var client = new GitHubReleaseClient();
-            var current = new Version(0, 5, 0); var release = await client.CheckAsync(current);
+            var current = new Version(0, 5, 1); var release = await client.CheckAsync(current);
             if (release == null) { await MessageAsync("已是最新版本", $"当前版本 {current}。GitHub 暂无更新的正式 Release。"); return; }
             var confirm = new ContentDialog { XamlRoot = _root.XamlRoot, Title = $"发现新版本 {release.Version}", Content = new ScrollViewer { MaxHeight = 300, Content = Label($"当前版本 {current}\n\n{release.Notes}\n\n下载并校验后将停止广播、退出程序并打开安装向导。", 14) }, PrimaryButtonText = "下载并更新", CloseButtonText = "稍后", DefaultButton = ContentDialogButton.Primary };
             if (await confirm.ShowAsync() != ContentDialogResult.Primary) return;

@@ -44,6 +44,14 @@ try {
     if (-not (Test-Path -LiteralPath $iscc)) { $iscc = (Get-Command ISCC.exe -ErrorAction Stop).Source }
     & $iscc "/DAppVersion=$version" "/DPayloadDir=$(Join-Path $projectRoot $outputDirectory)" "$PSScriptRoot/installer.iss"
     if ($LASTEXITCODE -ne 0) { throw 'Installer compilation failed.' }
+    $installerName = "DormCast-$version-Setup-x64.exe"
+    $installer = Get-Item -LiteralPath "artifacts/$installerName"
+    $installerHash = (Get-FileHash -LiteralPath $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+    $manifest = @{ tag_name = "v$version"; draft = $false; prerelease = $false; body = "DormCast $version"; assets = @(@{ name = $installerName; size = $installer.Length; browser_download_url = "https://github.com/DrivingGodJ/DormCast/releases/download/v$version/$installerName"; digest = "sha256:$installerHash" }) } | ConvertTo-Json -Depth 5
+    [IO.File]::WriteAllText((Join-Path $projectRoot 'artifacts/update.json'), $manifest, [Text.UTF8Encoding]::new($false))
+    $releaseFiles = @("artifacts/$installerName", "artifacts/DormCast-$version-win-x64.zip", "artifacts/DormCast-$version-source.zip", 'artifacts/update.json')
+    $checksums = foreach ($file in $releaseFiles) { (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant() + '  ' + [IO.Path]::GetFileName($file) }
+    [IO.File]::WriteAllLines((Join-Path $projectRoot 'artifacts/SHA256SUMS.txt'), $checksums, [Text.UTF8Encoding]::new($false))
     Write-Host "Portable build: artifacts/DormCast-$version-win-x64.zip"
 }
 finally { Pop-Location }

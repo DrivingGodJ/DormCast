@@ -4,7 +4,7 @@
 
 ## 安装与首次使用
 
-支持 Windows 10 22H2 / Windows 11 x64。下载 Release 中 `DormCast-0.5.0-Setup-x64.exe` 安装到当前用户。安装包含 .NET、WinUI、Opus 所需本地运行文件，无需另外安装运行时。便携 ZIP 也可使用，需要完整解压目录，不能只复制 EXE。安装包尚未购买代码签名证书。
+支持 Windows 10 22H2 / Windows 11 x64。下载 Release 中 `DormCast-0.5.1-Setup-x64.exe` 安装到当前用户。安装包含 .NET、WinUI、Opus 所需本地运行文件，无需另外安装运行时。便携 ZIP 也可使用，需要完整解压目录，不能只复制 EXE。安装包尚未购买代码签名证书。
 
 同步主机声音需要虚拟声卡隔离原始音频与延迟后的扬声器声音。安装向导有专用准备页面；完成页可打开 `Drivers` 文件夹。首次打开软件若没有检测到虚拟声卡，也会显示步骤：
 
@@ -47,6 +47,8 @@
 在主机窗口点击“检查更新”，匿名读取 `DrivingGodJ/DormCast` 的最新正式 GitHub Release，按版本号比较。只在用户主动检查/下载时访问互联网，音频始终走局域网。新版本会说明当前广播将停止；选择“下载并更新”后下载匹配的 x64 安装包，校验 Release 提供的大小和 SHA-256。校验失败或取消会移除未完成文件。Windows 更新助手等待本程序完全退出后再次校验并打开安装向导，保留当前用户设置与身份。没有可用校验信息的旧 Release 请手动下载。公司策略禁止更新助手或 GitHub 不可达时可从官方 Release 页面手动安装。
 
 ## 开发和发布
+
+GitHub 匿名 API 被限流或暂时不可达时，软件会自动读取最新正式 Release 中的 `update.json`。该文件采用相同的版本、固定仓库下载地址、大小及 SHA-256 校验字段，用户无需配置 GitHub 令牌。构建脚本会在安装包生成后自动生成它，每次发布必须一并上传。
 
 源码结构：`src/DormCast/Audio` 采集/编码/主机播放/音量，`Synchronization` 时钟与延迟估计，`Transport` WebRTC 调度，`Networking` HTTP/信令/mDNS/身份，`Updates` GitHub 更新，`wwwroot` 浏览器，`src/DormCast.Desktop` WinUI/托盘，`scripts` 构建/安装，`tests` 核心与浏览器数学检查。
 
