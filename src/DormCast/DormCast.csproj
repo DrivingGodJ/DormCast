@@ -8,7 +8,7 @@
     <Nullable>enable</Nullable>
     <AssemblyName>DormCast.Core</AssemblyName>
     <RootNamespace>DormCast</RootNamespace>
-    <Version>0.5.1</Version>
+    <Version>0.5.2</Version>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
     <DebugType>embedded</DebugType>
   </PropertyGroup>

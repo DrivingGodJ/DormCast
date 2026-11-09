@@ -31,14 +31,14 @@ public sealed partial class MainWindow : Window
     string? _coverRevision;
     public MainWindow()
     {
-        Title = "宿舍之音 · DormCast 0.5.1 · WinUI 3";
+        Title = "宿舍之音 · DormCast 0.5.2 · WinUI 3";
         _window = WinRT.Interop.WindowNative.GetWindowHandle(this);
         AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "dormcast.ico"));
         var scale = GetDpiForWindow(_window) / 96.0;
         var display = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Primary).WorkArea;
         var width = Math.Min((int)(1160 * scale), display.Width - 48); var height = Math.Min((int)(860 * scale), display.Height - 48);
         AppWindow.Resize(new SizeInt32(width, height)); AppWindow.Move(new PointInt32(display.X + (display.Width - width) / 2, display.Y + (display.Height - height) / 2));
-        BuildLayout(); Content = _root; InitializeTheme(); _root.PreviewKeyDown += VolumeKeyDown;
+        BuildLayout(); Content = _root; InitializeTheme();
         _name.Text = _options.Name; _port.Value = _options.Port;
         _frame.Items.Add("20ms · 稳定音乐"); _frame.Items.Add("10ms · 较低延迟"); _frame.SelectedIndex = _options.FrameMs == 10 ? 1 : 0;
         _volume = new SpeakerVolumeController(_options.OutputDeviceId); _music.Start();

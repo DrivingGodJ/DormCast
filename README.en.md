@@ -10,7 +10,7 @@ Play music on Windows and listen together. DormCast broadcasts the computer's ac
 
 The native WinUI 3 host displays artwork, artist and album supplied by your player. Closing its window keeps broadcasting in the system tray. Listeners scan the QR code or bookmark the persistent join link. No account, receiver installation or external audio server is required.
 
-- **Control the broadcast from your PC**: in virtual-cable synchronized playback mode, Windows volume keys and the app slider control the physical speaker and audio sent to every browser. While broadcasting, ↑ / ↓ in the host window changes volume by 2% per press. The website has no separate volume slider; each phone still controls its own hardware volume.
+- **Control the broadcast from your PC**: in virtual-cable synchronized playback mode, Windows volume keys and the app slider control the physical speaker and audio sent to every browser. The website has no separate volume slider; each phone still controls its own hardware volume.
 - **A steadier shared timeline**: 48kHz stereo Opus over WebRTC. The common target starts at 250ms and changes in 50ms steps after an observation period, with automatic reduction after 60 seconds of stability. Compensation runs on the host even when a phone suspends page timers.
 - **Per-device diagnostics**: inspect base-path estimates, current and planned compensation, estimated alignment error, RTT, jitter, buffering, loss and measurement freshness.
 - **Everyday desktop features**: Windows theme and accent integration, translucent window, QR code, iOS home-screen icon, and manual GitHub update checks with installer download.

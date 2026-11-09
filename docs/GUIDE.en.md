@@ -4,7 +4,7 @@
 
 ## Installation
 
-Requires Windows 10 22H2 or Windows 11 x64. Install `DormCast-0.5.1-Setup-x64.exe` from Releases for the current user. The package includes .NET, WinUI and the native runtime files. The portable ZIP also works when fully extracted; copying only the EXE does not. The installer is not code-signed.
+Requires Windows 10 22H2 or Windows 11 x64. Install `DormCast-0.5.2-Setup-x64.exe` from Releases for the current user. The package includes .NET, WinUI and the native runtime files. The portable ZIP also works when fully extracted; copying only the EXE does not. The installer is not code-signed.
 
 Synchronized host playback requires a virtual cable to separate the original signal from the delayed physical output. The installer has a dedicated preparation page and can open the `Drivers` folder when finished. The app also explains these steps when no virtual endpoint is detected:
 
@@ -23,8 +23,6 @@ Other devices join the same LAN and scan the QR code or open the full link. Tap 
 In virtual-cable host playback mode, the Windows default endpoint volume, physical speaker volume and app slider are linked in both directions. Network audio is encoded with the physical endpoint's dB gain, so background listeners follow without JavaScript control messages. A separate unscaled local packet avoids applying the master attenuation twice on the host. Mute is linked too. There is no website volume slider; phone hardware volume remains independent, and this does not equalize acoustic loudness across different speakers. Remote volume changes follow the current playback delay. Direct physical-loopback mode retains normal capture behavior.
 
 ## Persistent links and networking
-
-While broadcasting with the DormCast window in the foreground, **↑ / ↓** changes volume by 2% per press; holding a key repeats. Text/numeric editors, dropdowns and the slider retain native keyboard behavior. Other applications' arrow keys are not registered globally.
 
 Each host has a stable `.local` name and random 256-bit join credential. New host names use a one-way digest of the Windows installation identity; phone MAC addresses are not collected. Browser access restrictions and randomized MACs make them unsuitable for this identity. Existing links migrate unchanged. Records are stored in `%LOCALAPPDATA%/DormCast/join-identity.json` and backed up under the current user's `HKCU/Software/DrivingGodJ/DormCast/Identity`. Reinstallation preserves both, and the backup recovers deleted app data. Reinstalling Windows, changing users or deleting both records cannot preserve the same full link.
 
