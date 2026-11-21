@@ -32,6 +32,7 @@ if (args.Contains("--devices"))
 if (args.Contains("--volume-link-check")) { await VolumeLinkChecks.RunAsync(MakeStimulus(3)); return; }
 if (args.Contains("--feature-checks")) { await FeatureChecks.RunAsync(); return; }
 if (args.Contains("--dual-join-check")) { await DualJoinChecks.RunAsync(); return; }
+if (args.Contains("--remote-control-check")) { await RemoteControlChecks.RunAsync(); return; }
 if (args.Contains("--volume-gain-check")) { await VolumeGainChecks.RunAsync(args.Contains("--stimulus") ? MakeStimulus(4) : null); return; }
 if (args.Contains("--github-release-check"))
 {
@@ -115,6 +116,7 @@ if (args.Contains("--stimulus"))
 
 var ring = new PcmRing(8);
 await FeatureChecks.RunAsync();
+await RemoteControlChecks.RunAsync();
 Check(NowPlayingService.ImageType(new byte[] { 0xff, 0xd8, 0xff, 0 }) == "image/jpeg" && NowPlayingService.ImageType("<svg onload='bad'>"u8) == null, "cover sniffer rejects active SVG" );
 var history = new TimelinePcmBuffer(8); history.Write(100, [0, 10, 2, 12, 4, 14]);
 var interpolated = new float[4]; history.Read(100.5, 1, interpolated);

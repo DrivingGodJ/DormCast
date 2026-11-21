@@ -10,7 +10,7 @@ public static class HeadlessRunner
         if (nic == null) throw new ArgumentException("没有可用的私网 IPv4 地址。");
         var options = new BroadcastOptions(Value("--name") ?? "宿舍之音", int.Parse(Value("--port") ?? "8080"), int.Parse(Value("--frame") ?? "20"),
             SyncEnabled: !args.Contains("--no-sync"), HostPlayback: args.Contains("--host-playback"), CaptureDeviceId: Value("--capture-device"), OutputDeviceId: Value("--output-device"),
-            HostHardwareCorrectionMs: int.Parse(Value("--host-hardware-ms") ?? "0"));
+            HostHardwareCorrectionMs: int.Parse(Value("--host-hardware-ms") ?? "0"), RemoteControlEnabled: !args.Contains("--no-remote-control"));
         using var stop = new CancellationTokenSource();
         if (Value("--duration") is { } seconds) stop.CancelAfter(TimeSpan.FromSeconds(int.Parse(seconds)));
         Console.CancelKeyPress += (_, e) => { e.Cancel = true; stop.Cancel(); };

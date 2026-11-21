@@ -3,7 +3,8 @@ using System.Text.Json;
 namespace DormCast.Hosting;
 
 public sealed record BroadcastOptions(string Name = "宿舍之音", int Port = 8080, int FrameMs = 20, int BufferMs = 60,
-    bool SyncEnabled = true, bool HostPlayback = false, string? CaptureDeviceId = null, string? OutputDeviceId = null, int HostHardwareCorrectionMs = 0)
+    bool SyncEnabled = true, bool HostPlayback = false, string? CaptureDeviceId = null, string? OutputDeviceId = null, int HostHardwareCorrectionMs = 0,
+    bool RemoteControlEnabled = true)
 {
     public void Validate()
     {

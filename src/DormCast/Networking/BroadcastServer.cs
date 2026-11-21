@@ -12,12 +12,13 @@ using Microsoft.Extensions.Logging;
 
 namespace DormCast.Networking;
 
-public sealed class BroadcastServer(BroadcastOptions options, LanInterface nic, AudioEngine audio) : IAsyncDisposable
+public sealed class BroadcastServer(BroadcastOptions options, LanInterface nic, AudioEngine audio, IHostController? controller = null) : IAsyncDisposable
 {
     readonly JoinIdentity _identity = JoinIdentity.Persistent;
     readonly byte[] _token = Convert.FromHexString(JoinIdentity.Persistent.Token);
     readonly StableAddressPublisher _address = new();
-    readonly NowPlayingService _music = new();
+    readonly IHostController _control = controller ?? new HostControlService(options);
+    readonly bool _ownsController = controller == null;
     readonly ConcurrentDictionary<string, ClientSession> _clients = new();
     readonly ConcurrentDictionary<string, Task> _tasks = new();
     readonly SemaphoreSlim _slots = new(16);
@@ -30,11 +31,19 @@ public sealed class BroadcastServer(BroadcastOptions options, LanInterface nic, 
     public object AudioSnapshot => audio.Snapshot();
     public int ConnectedCount => _clients.Values.Count(c => c.Connected);
     public object[] Clients => _clients.Values.Select(c => c.Snapshot()).ToArray();
-    public NowPlayingInfo NowPlaying => _music.Current;
+    public NowPlayingInfo NowPlaying => _control.NowPlaying;
+    public HostControlState HostControl => _control.ControlState;
     public string AddressStatus => _address.Status;
     public string BaseUrl => $"http://{nic.Address}:{options.Port}";
     public string JoinUrl => $"http://{_identity.HostName}:{options.Port}/#join={_identity.Token}";
     public string IpJoinUrl => $"{BaseUrl}/#join={_identity.Token}";
+    public Task<HostControlResult> ControlAsync(string action, float? level, float? delta, bool? muted, CancellationToken ct) =>
+        _control.ExecuteAsync(action, level, delta, muted, ct);
+    public void NotifyHostStateChanged(string? excludeSessionId = null)
+    {
+        foreach (var client in _clients.Values)
+            if (client.Id != excludeSessionId) client.PushHostState();
+    }
     public bool Authenticate(string? value)
     {
         if (value?.Length != 64) return false;
@@ -56,9 +65,12 @@ public sealed class BroadcastServer(BroadcastOptions options, LanInterface nic, 
         _app.UseWebSockets(new WebSocketOptions { KeepAliveInterval = TimeSpan.FromSeconds(15), KeepAliveTimeout = TimeSpan.FromSeconds(45) });
         _app.Run(HandleAsync);
         await _app.StartAsync(_stop.Token).ConfigureAwait(false);
-        _address.Start(nic, _identity, options.Port); _music.Start();
+        _address.Start(nic, _identity, options.Port);
+        _control.StateChanged += OnHostStateChanged;
+        _control.Start();
         audio.FrameReady += FanOut;
     }
+    void OnHostStateChanged() => NotifyHostStateChanged();
     void FanOut(EncodedFrame frame) { foreach (var client in _clients.Values) client.Enqueue(frame); }
     async Task HandleAsync(HttpContext context)
     {
@@ -91,7 +103,7 @@ public sealed class BroadcastServer(BroadcastOptions options, LanInterface nic, 
         {
             var authorization = context.Request.Headers.Authorization.ToString();
             if (!authorization.StartsWith("Bearer ", StringComparison.Ordinal) || !Authenticate(authorization[7..])) { context.Response.StatusCode = 401; return; }
-            var cover = _music.Cover(coverPath.Value?.Trim('/') ?? "");
+            var cover = _control.Cover(coverPath.Value?.Trim('/') ?? "");
             if (cover == null) { context.Response.StatusCode = 404; return; }
             context.Response.ContentType = cover.ContentType; await context.Response.Body.WriteAsync(cover.Bytes, context.RequestAborted).ConfigureAwait(false); return;
         }
@@ -117,7 +129,9 @@ public sealed class BroadcastServer(BroadcastOptions options, LanInterface nic, 
     public async ValueTask DisposeAsync()
     {
         audio.FrameReady -= FanOut;
-        await _music.DisposeAsync().ConfigureAwait(false); _address.Dispose();
+        _control.StateChanged -= OnHostStateChanged;
+        if (_ownsController) await _control.DisposeAsync().ConfigureAwait(false);
+        _address.Dispose();
         await Task.WhenAll(_clients.Values.Select(c => c.EndAsync())).ConfigureAwait(false);
         // Give the serialized writers one bounded interval to deliver the end notice.
         var remaining = Task.WhenAll(_tasks.Values);

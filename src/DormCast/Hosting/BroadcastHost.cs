@@ -19,6 +19,7 @@ public sealed class BroadcastHost : IAsyncDisposable
     public string? IpJoinUrl => _server?.IpJoinUrl;
     public string AddressStatus => _server?.AddressStatus ?? "尚未广播";
     public NowPlayingInfo NowPlaying => _server?.NowPlaying ?? NowPlayingInfo.Empty;
+    public HostControlState? HostControl => _server?.HostControl;
     public string DeviceName => _audio?.DeviceName ?? "开始广播后连接默认输出设备";
     public string CaptureStatus => _audio?.CaptureStatus ?? "尚未采集";
     public double Peak => _audio?.Peak ?? 0;
@@ -27,7 +28,7 @@ public sealed class BroadcastHost : IAsyncDisposable
     public object[] Clients => _server?.Clients ?? [];
     public SyncState? SyncState => _server?.Synchronization.GetState(_audio!.NowMs);
     public string MonitorStatus => _monitor?.Status ?? "主机未启用延迟播放";
-    public async Task StartAsync(BroadcastOptions options, LanInterface nic)
+    public async Task StartAsync(BroadcastOptions options, LanInterface nic, IHostController? controller = null)
     {
         await _lifecycle.WaitAsync().ConfigureAwait(false);
         try
@@ -37,7 +38,7 @@ public sealed class BroadcastHost : IAsyncDisposable
             if (!nic.IsAvailable()) throw new IOException("所选局域网地址已不可用，请刷新网卡列表。");
             if (options.HostPlayback) AudioDevices.ValidateRoute(options.CaptureDeviceId, options.OutputDeviceId);
             var audio = new AudioEngine(options.FrameMs, options.CaptureDeviceId) { EncodeLocalMonitor = options.HostPlayback };
-            var server = new BroadcastServer(options, nic, audio);
+            var server = new BroadcastServer(options, nic, audio, controller);
             HostMonitor? monitor = null;
             DefaultAudioRoute? route = null;
             BroadcastVolumeLink? volumeLink = null;
@@ -75,7 +76,7 @@ public sealed class BroadcastHost : IAsyncDisposable
     public string Diagnostics() => JsonSerializer.Serialize(new
     {
         version = "0.5.3", utc = DateTimeOffset.UtcNow, running = Running,
-        endpoint = _server?.BaseUrl, fixedHost = JoinIdentity.Persistent.HostName, addressStatus = AddressStatus, nowPlaying = NowPlaying,
+        endpoint = _server?.BaseUrl, fixedHost = JoinIdentity.Persistent.HostName, addressStatus = AddressStatus, nowPlaying = NowPlaying, hostControl = HostControl,
         audio = _audio?.Snapshot(), clients = Clients, synchronization = SyncState, hostPlayback = _monitor?.Snapshot(),
         latencyNote = "RTT / jitter / jitterBuffer are not measured acoustic end-to-end latency."
     }, new JsonSerializerOptions { WriteIndented = true });

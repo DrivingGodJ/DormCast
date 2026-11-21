@@ -14,6 +14,9 @@
   let syncDirection = 'stable', desiredTargetMs = 250;
   let hostReadyAt = 0, displayError = null;
   let serverCompensation = false, senderDelayMs = 0, measuredAt = 0;
+  let wsReady = false, remoteControl = { enabled: false, volume: { available: false, level: 0.5, muted: false, deviceName: null } };
+  let hostNowPlaying = { Playing: false, HasSession: false };
+  let volumeDragging = false, lastVolumeInputAt = 0, pendingVolumeLevel = null, volumeTimer = null, feedbackTimer = null, feedbackActive = false;
   let backgroundMode = /Android|iPhone|iPad|iPod/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
   try { const saved = localStorage.getItem('DormCast.backgroundMode'); if (saved !== null) backgroundMode = saved === 'true'; } catch {}
   el('backgroundMode').checked = backgroundMode;
@@ -81,6 +84,105 @@
     media.state(isPlaying() && live ? 'playing' : connected ? 'paused' : 'none');
   }
   function send(value) { if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(value)); }
+  function normalizeControl(raw) {
+    if (!raw) return null;
+    const v = raw.Volume ?? raw.volume ?? {};
+    return {
+      enabled: (raw.Enabled ?? raw.enabled) === true,
+      volume: {
+        available: (v.Available ?? v.available) === true,
+        level: Math.max(0, Math.min(1, Number(v.Level ?? v.level ?? 0) || 0)),
+        muted: (v.Muted ?? v.muted) === true,
+        deviceName: v.DeviceName ?? v.deviceName ?? null
+      }
+    };
+  }
+  function defaultRemoteFeedback() {
+    if (!wsReady || ended) return '连接后可控制主机播放、切歌与音量';
+    if (!remoteControl.enabled) return '主机已在设置中关闭浏览器远程控制';
+    if (remoteControl.volume.available && remoteControl.volume.deviceName) return `主机扬声器：${remoteControl.volume.deviceName}`;
+    return '可控制主机播放、暂停与切歌';
+  }
+  function showRemoteFeedback(text, isError = false) {
+    if (!text) return;
+    clearTimeout(feedbackTimer);
+    feedbackActive = true;
+    const node = el('remoteFeedback');
+    node.textContent = text;
+    node.classList.toggle('error', isError);
+    feedbackTimer = setTimeout(() => {
+      feedbackActive = false;
+      node.classList.remove('error');
+      node.textContent = defaultRemoteFeedback();
+    }, 2600);
+  }
+  function renderRemoteControl() {
+    const active = wsReady && !ended && remoteControl.enabled;
+    const volActive = active && remoteControl.volume.available;
+    el('remoteControl').classList.toggle('is-disabled', !active);
+    el('hostPrev').disabled = !active;
+    el('hostPlayPause').disabled = !active;
+    el('hostNext').disabled = !active;
+    el('hostMute').disabled = !volActive;
+    el('hostVolDown').disabled = !volActive;
+    el('hostVolUp').disabled = !volActive;
+    el('hostVolume').disabled = !volActive;
+
+    const playing = Boolean(hostNowPlaying.Playing);
+    const hasSession = Boolean(hostNowPlaying.HasSession);
+    const badge = el('hostPlaybackBadge');
+    badge.classList.toggle('playing', active && playing);
+    badge.textContent = !wsReady || ended ? '未连接' : !remoteControl.enabled ? '主机已关闭' : playing ? '主机播放中' : hasSession ? '主机已暂停' : '已连接';
+
+    el('hostPlayIcon').hidden = playing;
+    el('hostPauseIcon').hidden = !playing;
+    el('hostPlayLabel').textContent = playing ? '暂停' : hasSession ? '播放' : '播放/暂停';
+    el('hostPlayPause').classList.toggle('is-playing', active && playing);
+    el('hostPlayPause').setAttribute('aria-pressed', String(playing));
+    el('hostPlayPause').setAttribute('aria-label', playing ? '暂停主机播放' : hasSession ? '继续主机播放' : '切换主机播放或暂停');
+
+    if (remoteControl.volume.available) {
+      if (!volumeDragging && performance.now() - lastVolumeInputAt > 600) {
+        const pct = Math.round(remoteControl.volume.level * 100);
+        el('hostVolume').value = String(pct);
+        el('hostVolumeValue').textContent = remoteControl.volume.muted ? '静音' : `${pct}%`;
+        el('hostMute').classList.toggle('is-muted', remoteControl.volume.muted);
+        el('hostVolIcon').hidden = remoteControl.volume.muted;
+        el('hostMuteIcon').hidden = !remoteControl.volume.muted;
+      }
+    } else {
+      el('hostVolumeValue').textContent = '—';
+      el('hostMute').classList.remove('is-muted');
+      el('hostVolIcon').hidden = false;
+      el('hostMuteIcon').hidden = true;
+    }
+    if (!feedbackActive) {
+      el('remoteFeedback').classList.remove('error');
+      el('remoteFeedback').textContent = defaultRemoteFeedback();
+    }
+  }
+  function applyHostState(nextPlaying, nextControl) {
+    if (nextPlaying) {
+      hostNowPlaying = {
+        Playing: Boolean(nextPlaying.Playing ?? nextPlaying.playing),
+        HasSession: Boolean(nextPlaying.HasSession ?? nextPlaying.hasSession)
+      };
+    }
+    const normalized = normalizeControl(nextControl);
+    if (normalized) remoteControl = normalized;
+    renderRemoteControl();
+  }
+  function sendHostControl(payload) {
+    if (!wsReady || ended || !remoteControl.enabled) return;
+    send({ type: 'control', ...payload });
+  }
+  function flushVolume() {
+    clearTimeout(volumeTimer); volumeTimer = null;
+    if (pendingVolumeLevel === null) return;
+    const level = pendingVolumeLevel;
+    pendingVolumeLevel = null;
+    sendHostControl({ action: 'volume', level });
+  }
   function isPlaying() { return !paused && (audioContext ? audioContext.state === 'running' && silentSink && !silentSink.paused && (!mediaOutput || !mediaOutput.paused) : fallback && !fallback.paused); }
   function audioElement() {
     const audio = new Audio(); audio.setAttribute('playsinline', ''); audio.className = 'audio-output'; document.body.append(audio); return audio;
@@ -153,6 +255,11 @@
   }
   async function cleanup() {
     clearInterval(statsTimer); clearInterval(pingTimer); clearInterval(syncTimer);
+    clearTimeout(volumeTimer); clearTimeout(feedbackTimer); volumeTimer = feedbackTimer = null;
+    wsReady = false; volumeDragging = false; pendingVolumeLevel = null; feedbackActive = false;
+    hostNowPlaying = { Playing: false, HasSession: false };
+    remoteControl = { enabled: false, volume: { available: false, level: 0.5, muted: false, deviceName: null } };
+    renderRemoteControl();
     const oldWs = ws, oldPc = pc, oldContext = audioContext, oldFallback = fallback, oldSink = silentSink, oldOutput = mediaOutput;
     ws = pc = audioContext = source = gain = fallback = stream = silentSink = delayNode = mediaOutput = mediaDestination = null;
     connected = false; previous = null; candidates = []; sourceClock = new SourceClock();
@@ -219,8 +326,10 @@
     if (currentGeneration !== generation) return;
     switch (message.type) {
       case 'welcome': {
+        wsReady = true;
         el('title').textContent = message.name; document.title = `${message.name} · 一起听`;
         void media.update(message.nowPlaying, token, message.name);
+        applyHostState(message.nowPlaying, message.hostControl);
         targetMs = message.bufferMs; syncEnabled = message.syncEnabled !== false; commonTargetMs = message.syncTargetMs || 250; playoutTargetMs = commonTargetMs; hostReadyAt = 0; displayError = null; timelineStartMs = message.timelineStartMs ?? 40;
         serverCompensation = message.serverCompensation === true;
         localMonitorOnly = message.localMonitorOnly === true;
@@ -276,9 +385,19 @@
         if (message.compensation) { senderDelayMs = message.compensation.senderMs; if (message.compensation.ready && !hostReadyAt) hostReadyAt = performance.now() + 500; }
         if (message.sync) { commonTargetMs = message.sync.targetMs; playoutTargetMs = message.sync.playoutTargetMs ?? commonTargetMs; desiredTargetMs = message.sync.desiredMs; syncDirection = message.sync.direction; referenceDevice = message.sync.referenceDevice; el('groupTarget').textContent = `${Math.round(commonTargetMs)} ms`; }
         void media.update(message.nowPlaying, token);
+        applyHostState(message.nowPlaying, message.hostControl);
         if (!localMonitorOnly) syncTick();
         if (message.audio?.error) status('主机音频异常', '主机音频编码已停止，请主机重新开启广播。');
         else if (message.audio?.capture?.includes('重试')) status('等待主机音频设备', '主机输出设备暂不可用，正在自动恢复。');
+        break;
+      case 'host-state':
+        if (message.nowPlaying) void media.update(message.nowPlaying, token);
+        applyHostState(message.nowPlaying, message.hostControl);
+        break;
+      case 'control-result':
+        if (message.nowPlaying) void media.update(message.nowPlaying, token);
+        applyHostState(message.nowPlaying, message.hostControl);
+        if (message.message) showRemoteFeedback(message.message, !message.ok);
         break;
       case 'ended':
         ended = true; generation++; clearTimeout(retryTimer); retryTimer = null;
@@ -319,6 +438,62 @@
   }
   media.init(() => void play(), pauseListening);
   el('listen').addEventListener('click', async () => { if (isPlaying()) pauseListening(); else await play(); });
+  el('hostPrev').addEventListener('click', () => sendHostControl({ action: 'previous' }));
+  el('hostPlayPause').addEventListener('click', () => {
+    const action = hostNowPlaying.Playing ? 'pause' : hostNowPlaying.HasSession ? 'play' : 'toggle';
+    sendHostControl({ action });
+  });
+  el('hostNext').addEventListener('click', () => sendHostControl({ action: 'next' }));
+  el('hostMute').addEventListener('click', () => {
+    const nextMuted = !remoteControl.volume.muted;
+    lastVolumeInputAt = performance.now();
+    remoteControl.volume.muted = nextMuted;
+    el('hostMute').classList.toggle('is-muted', nextMuted);
+    el('hostVolIcon').hidden = nextMuted;
+    el('hostMuteIcon').hidden = !nextMuted;
+    el('hostVolumeValue').textContent = nextMuted ? '静音' : `${el('hostVolume').value}%`;
+    sendHostControl({ action: 'mute', muted: nextMuted });
+  });
+  el('hostVolDown').addEventListener('click', () => {
+    const nextPct = Math.max(0, Number(el('hostVolume').value) - 5);
+    lastVolumeInputAt = performance.now();
+    el('hostVolume').value = String(nextPct);
+    el('hostVolumeValue').textContent = `${nextPct}%`;
+    sendHostControl({ action: 'volume-step', delta: -0.05 });
+  });
+  el('hostVolUp').addEventListener('click', () => {
+    const nextPct = Math.min(100, Number(el('hostVolume').value) + 5);
+    lastVolumeInputAt = performance.now();
+    el('hostVolume').value = String(nextPct);
+    el('hostVolumeValue').textContent = `${nextPct}%`;
+    el('hostMute').classList.remove('is-muted');
+    el('hostVolIcon').hidden = false;
+    el('hostMuteIcon').hidden = true;
+    sendHostControl({ action: 'volume-step', delta: 0.05 });
+  });
+  el('hostVolume').addEventListener('pointerdown', () => { volumeDragging = true; });
+  el('hostVolume').addEventListener('pointerup', () => { volumeDragging = false; });
+  el('hostVolume').addEventListener('pointercancel', () => { volumeDragging = false; });
+  el('hostVolume').addEventListener('input', e => {
+    const pct = Math.max(0, Math.min(100, Math.round(Number(e.target.value) || 0)));
+    lastVolumeInputAt = performance.now();
+    el('hostVolumeValue').textContent = `${pct}%`;
+    if (pct > 0) {
+      remoteControl.volume.muted = false;
+      el('hostMute').classList.remove('is-muted');
+      el('hostVolIcon').hidden = false;
+      el('hostMuteIcon').hidden = true;
+    }
+    pendingVolumeLevel = pct / 100;
+    if (!volumeTimer) volumeTimer = setTimeout(flushVolume, 60);
+  });
+  el('hostVolume').addEventListener('change', e => {
+    volumeDragging = false;
+    const pct = Math.max(0, Math.min(100, Math.round(Number(e.target.value) || 0)));
+    lastVolumeInputAt = performance.now();
+    pendingVolumeLevel = pct / 100;
+    flushVolume();
+  });
   el('backgroundMode').addEventListener('change', async e => {
     backgroundMode = e.target.checked;
     try { localStorage.setItem('DormCast.backgroundMode', String(backgroundMode)); } catch {}

@@ -12,7 +12,9 @@ public sealed class SpeakerVolumeController : IDisposable
     string? _preferred;
     SpeakerVolumeState? _current;
     int _pending = -1;
+    int _pendingMute = -1;
     long _opens, _writes;
+    public event Action<SpeakerVolumeState>? Changed;
     public SpeakerVolumeState? Current => Volatile.Read(ref _current);
     public long DeviceOpenCount => Interlocked.Read(ref _opens);
     public long WriteCount => Interlocked.Read(ref _writes);
@@ -27,6 +29,8 @@ public sealed class SpeakerVolumeController : IDisposable
         if (!float.IsFinite(level) || level is < 0 or > 1) throw new ArgumentOutOfRangeException(nameof(level));
         Interlocked.Exchange(ref _pending, (int)Math.Round(level * 10000));
     }
+    public void RequestMute(bool muted) => Interlocked.Exchange(ref _pendingMute, muted ? 1 : 0);
+    public void RequestToggleMute() => Interlocked.Exchange(ref _pendingMute, 2);
     void Run()
     {
         MMDeviceEnumerator? enumerator = null; MMDevice? device = null;
@@ -50,17 +54,30 @@ public sealed class SpeakerVolumeController : IDisposable
                         name = selected?.Name; configured = preferred; lastResolve = Stopwatch.GetTimestamp();
                     }
                     var pending = Interlocked.Exchange(ref _pending, -1);
+                    var pendingMute = Interlocked.Exchange(ref _pendingMute, -1);
                     if (device == null) { Volatile.Write(ref _current, null); continue; }
+                    var wrote = false;
                     if (pending >= 0)
                     {
                         device.AudioEndpointVolume.MasterVolumeLevelScalar = pending / 10000f;
-                        if (pending > 0) device.AudioEndpointVolume.Mute = false;
+                        if (pending > 0 && pendingMute != 1) device.AudioEndpointVolume.Mute = false;
                         Interlocked.Increment(ref _writes);
+                        wrote = true;
                     }
-                    if (pending >= 0 || Stopwatch.GetElapsedTime(lastRead).TotalMilliseconds >= 400)
+                    if (pendingMute >= 0)
                     {
-                        Volatile.Write(ref _current, new SpeakerVolumeState(device.ID, name ?? "实际扬声器", device.AudioEndpointVolume.MasterVolumeLevelScalar, device.AudioEndpointVolume.Mute));
+                        device.AudioEndpointVolume.Mute = pendingMute == 2 ? !device.AudioEndpointVolume.Mute : pendingMute == 1;
+                        Interlocked.Increment(ref _writes);
+                        wrote = true;
+                    }
+                    if (wrote || Stopwatch.GetElapsedTime(lastRead).TotalMilliseconds >= 400)
+                    {
+                        var previous = Volatile.Read(ref _current);
+                        var next = new SpeakerVolumeState(device.ID, name ?? "实际扬声器", device.AudioEndpointVolume.MasterVolumeLevelScalar, device.AudioEndpointVolume.Mute);
+                        Volatile.Write(ref _current, next);
                         lastRead = Stopwatch.GetTimestamp();
+                        if (previous == null || previous.DeviceId != next.DeviceId || previous.Muted != next.Muted || Math.Abs(previous.Level - next.Level) >= 0.005f)
+                            Changed?.Invoke(next);
                     }
                 }
                 catch (Exception ex)

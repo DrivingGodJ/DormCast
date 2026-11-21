@@ -17,7 +17,7 @@ public sealed class ClientSession(WebSocket socket, BroadcastServer server, IPAd
     readonly CancellationTokenSource _stop = new();
     ListenerPeer? _peer;
     JsonElement? _metrics;
-    bool _background;
+    bool _background, _authenticated;
     double? _baseLatency;
     double? _metricsAt, _measuredAt;
     public string Id { get; } = Guid.NewGuid().ToString("N")[..8];
@@ -26,6 +26,11 @@ public sealed class ClientSession(WebSocket socket, BroadcastServer server, IPAd
     public bool Connected => _peer?.Connected == true && !LocalPreview;
     public object Snapshot() => new { id = Id, name = Name, state = LocalPreview ? "主机网页预览" : _peer?.State ?? "authenticating", localPreview = LocalPreview, background = _background, sendDelayMs = _peer?.SendDelayMs ?? 0, plannedSendDelayMs = _peer?.PlannedSendDelayMs ?? 0, baselineMs = _baseLatency, metricsAgeMs = _metricsAt is { } m ? (double?)Math.Max(0, server.NowMs - m) : null, measurementAgeMs = _measuredAt is { } t ? (double?)Math.Max(0, server.NowMs - t) : null, metrics = _metrics, sentFrames = _peer?.SentFrames ?? 0, droppedFrames = _peer?.DroppedFrames ?? 0 };
     void Send(object value) { if (!_outgoing.Writer.TryWrite(value)) { try { _stop.Cancel(); } catch (ObjectDisposedException) { } } }
+    public void PushHostState()
+    {
+        if (!_authenticated) return;
+        _outgoing.Writer.TryWrite(new { type = "host-state", nowPlaying = server.NowPlaying, hostControl = server.HostControl });
+    }
     public void Enqueue(EncodedFrame frame) => _peer?.Enqueue(frame);
     public Task EndAsync()
     {
@@ -49,16 +54,33 @@ public sealed class ClientSession(WebSocket socket, BroadcastServer server, IPAd
                 return;
             }
             Name = hello.TryGetProperty("name", out var name) ? new string((name.GetString() ?? "浏览器").Where(c => !char.IsControl(c)).Take(80).ToArray()) : "浏览器";
+            _authenticated = true;
             writer = WriteLoopAsync(ct);
-            Send(new { type = "welcome", id = Id, name = server.Options.Name, bufferMs = server.Options.BufferMs, frameMs = server.Options.FrameMs, sampleRate = 48000, serverMs = server.NowMs, syncEnabled = server.Options.SyncEnabled, serverCompensation = true, syncTargetMs = server.Synchronization.GetState(server.NowMs).TargetMs, timelineStartMs = AudioEngine.TimelineStartMs, localMonitorOnly = LocalPreview, nowPlaying = server.NowPlaying });
+            Send(new { type = "welcome", id = Id, name = server.Options.Name, bufferMs = server.Options.BufferMs, frameMs = server.Options.FrameMs, sampleRate = 48000, serverMs = server.NowMs, syncEnabled = server.Options.SyncEnabled, serverCompensation = true, syncTargetMs = server.Synchronization.GetState(server.NowMs).TargetMs, timelineStartMs = AudioEngine.TimelineStartMs, localMonitorOnly = LocalPreview, nowPlaying = server.NowPlaying, hostControl = server.HostControl });
             _peer = new ListenerPeer(server.Interface, signalAddress, server.Options.FrameMs) { Signal = Send };
             heartbeat = HeartbeatAsync(ct);
             using var negotiate = CancellationTokenSource.CreateLinkedTokenSource(ct);
             negotiate.CancelAfter(TimeSpan.FromSeconds(12));
             var earlyCandidates = new List<JsonElement>();
             var offer = await ReadAsync(negotiate.Token).ConfigureAwait(false);
-            while (offer.GetProperty("type").GetString() == "candidate" && earlyCandidates.Count < 32)
-            { earlyCandidates.Add(offer.Clone()); offer = await ReadAsync(negotiate.Token).ConfigureAwait(false); }
+            while (offer.GetProperty("type").GetString() is "candidate" or "control" or "ping" or "visibility")
+            {
+                var earlyType = offer.GetProperty("type").GetString();
+                if (earlyType == "candidate") { if (earlyCandidates.Count < 32) earlyCandidates.Add(offer.Clone()); }
+                else if (earlyType == "control") await HandleControlAsync(offer, negotiate.Token).ConfigureAwait(false);
+                else if (earlyType == "ping")
+                {
+                    var clientMs = offer.GetProperty("clientMs").GetDouble();
+                    if (!double.IsFinite(clientMs)) throw new ArgumentException("Invalid clock probe");
+                    Send(new ClockPong(clientMs, server.NowMs));
+                }
+                else if (earlyType == "visibility")
+                {
+                    _background = offer.GetProperty("hidden").GetBoolean();
+                    server.Synchronization.SetBackground(Id, _background);
+                }
+                offer = await ReadAsync(negotiate.Token).ConfigureAwait(false);
+            }
             if (offer.GetProperty("type").GetString() != "offer") throw new ArgumentException("Expected audio offer");
             await _peer.AnswerAsync(offer.GetProperty("sdp").GetString() ?? "").ConfigureAwait(false);
             foreach (var early in earlyCandidates) Candidate(early);
@@ -81,6 +103,9 @@ public sealed class ClientSession(WebSocket socket, BroadcastServer server, IPAd
                     case "visibility":
                         _background = message.GetProperty("hidden").GetBoolean();
                         server.Synchronization.SetBackground(Id, _background); break;
+                    case "control":
+                        await HandleControlAsync(message, ct).ConfigureAwait(false);
+                        break;
                     case "sync-report":
                         if (server.Options.SyncEnabled)
                         {
@@ -108,6 +133,16 @@ public sealed class ClientSession(WebSocket socket, BroadcastServer server, IPAd
             if (_peer != null) await _peer.DisposeAsync().ConfigureAwait(false);
             socket.Abort(); socket.Dispose(); _stop.Dispose();
         }
+    }
+    async Task HandleControlAsync(JsonElement message, CancellationToken ct)
+    {
+        var action = message.TryGetProperty("action", out var a) && a.ValueKind == JsonValueKind.String ? a.GetString() ?? "" : "";
+        float? level = message.TryGetProperty("level", out var l) && l.ValueKind == JsonValueKind.Number && l.TryGetSingle(out var lf) ? lf : null;
+        float? delta = message.TryGetProperty("delta", out var d) && d.ValueKind == JsonValueKind.Number && d.TryGetSingle(out var df) ? df : null;
+        bool? muted = message.TryGetProperty("muted", out var m) && (m.ValueKind == JsonValueKind.True || m.ValueKind == JsonValueKind.False) ? m.GetBoolean() : null;
+        var result = await server.ControlAsync(action, level, delta, muted, ct).ConfigureAwait(false);
+        Send(new { type = "control-result", ok = result.Ok, action = result.Action, message = result.Message, hostControl = result.State ?? server.HostControl, nowPlaying = result.NowPlaying ?? server.NowPlaying });
+        if (result.Ok) server.NotifyHostStateChanged(Id);
     }
     void Candidate(JsonElement message)
     {
@@ -150,7 +185,7 @@ public sealed class ClientSession(WebSocket socket, BroadcastServer server, IPAd
             await Task.Delay(1000, ct).ConfigureAwait(false);
             var sync = server.Synchronization.GetState(server.NowMs);
             if (server.Options.SyncEnabled && server.Synchronization.Samples(Id) >= 3 && _baseLatency is { } baseline) _peer?.SetCompensation(sync.PlayoutTargetMs - baseline);
-            Send(new { type = "timeline", serverMs = server.NowMs, audio = server.AudioSnapshot, nowPlaying = server.NowPlaying,
+            Send(new { type = "timeline", serverMs = server.NowMs, audio = server.AudioSnapshot, nowPlaying = server.NowPlaying, hostControl = server.HostControl,
                 compensation = new { senderMs = _peer?.SendDelayMs ?? 0, baselineMs = _baseLatency, background = _background, ready = server.Synchronization.Samples(Id) >= 3 },
                 sync = new { enabled = server.Options.SyncEnabled, targetMs = sync.TargetMs, playoutTargetMs = sync.PlayoutTargetMs, desiredMs = sync.DesiredMs, direction = sync.Direction, referenceDevice = sync.ReferenceDevice, measuredDevices = sync.MeasuredDevices, maximumMs = sync.MaximumMs } });
         }
