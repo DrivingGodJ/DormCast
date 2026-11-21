@@ -12,9 +12,10 @@ foreach($dir in @('src','tests','scripts','docs','licenses')) {
 foreach($file in @('.gitignore','global.json','README.md','README.en.md','LICENSE','THIRD-PARTY-NOTICES.md')) { $files+=Get-Item -LiteralPath (Join-Path $projectRoot $file) -Force }
 $stream=[IO.File]::Open($zipPath,[IO.FileMode]::Create)
 $zip=[IO.Compression.ZipArchive]::new($stream,[IO.Compression.ZipArchiveMode]::Create,$false,[Text.Encoding]::UTF8)
+$rootPrefix = $projectRoot.TrimEnd('\','/') + [IO.Path]::DirectorySeparatorChar
 try {
     foreach($file in $files) {
-        $relative=[IO.Path]::GetRelativePath($projectRoot,$file.FullName).Replace('\','/')
+        $relative=$file.FullName.Substring($rootPrefix.Length).Replace('\','/')
         [IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip,$file.FullName,"DormCast-source/$relative",[IO.Compression.CompressionLevel]::Optimal) | Out-Null
     }
 }
