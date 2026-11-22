@@ -19,6 +19,8 @@ try {
         if ($LASTEXITCODE -ne 0) { throw 'Checks failed.' }
         & node tests/sync-math-checks.cjs
         if ($LASTEXITCODE -ne 0) { throw 'Browser synchronization checks failed.' }
+        & node tests/theme-color-checks.cjs
+        if ($LASTEXITCODE -ne 0) { throw 'Browser cover theme checks failed.' }
     }
     & $dotnetExe publish $desktopProject -c Release -r win-x64 --self-contained true -o $outputDirectory
     if ($LASTEXITCODE -ne 0) { throw 'Publish failed.' }

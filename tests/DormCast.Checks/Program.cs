@@ -33,6 +33,16 @@ if (args.Contains("--volume-link-check")) { await VolumeLinkChecks.RunAsync(Make
 if (args.Contains("--feature-checks")) { await FeatureChecks.RunAsync(); return; }
 if (args.Contains("--dual-join-check")) { await DualJoinChecks.RunAsync(); return; }
 if (args.Contains("--remote-control-check")) { await RemoteControlChecks.RunAsync(); return; }
+if (args.Contains("--cover-theme-check")) { await CoverThemeChecks.RunAsync(); return; }
+if (args.Contains("--serve-cover-demo"))
+{
+    var pIdx = Array.IndexOf(args, "--port");
+    var sIdx = Array.IndexOf(args, "--seconds");
+    var port = pIdx >= 0 && pIdx + 1 < args.Length ? int.Parse(args[pIdx + 1]) : 18099;
+    var seconds = sIdx >= 0 && sIdx + 1 < args.Length ? int.Parse(args[sIdx + 1]) : 90;
+    await CoverThemeChecks.RunDemoServerAsync(port, seconds);
+    return;
+}
 if (args.Contains("--volume-gain-check")) { await VolumeGainChecks.RunAsync(args.Contains("--stimulus") ? MakeStimulus(4) : null); return; }
 if (args.Contains("--github-release-check"))
 {
@@ -117,6 +127,7 @@ if (args.Contains("--stimulus"))
 var ring = new PcmRing(8);
 await FeatureChecks.RunAsync();
 await RemoteControlChecks.RunAsync();
+await CoverThemeChecks.RunAsync();
 Check(NowPlayingService.ImageType(new byte[] { 0xff, 0xd8, 0xff, 0 }) == "image/jpeg" && NowPlayingService.ImageType("<svg onload='bad'>"u8) == null, "cover sniffer rejects active SVG" );
 var history = new TimelinePcmBuffer(8); history.Write(100, [0, 10, 2, 12, 4, 14]);
 var interpolated = new float[4]; history.Read(100.5, 1, interpolated);
@@ -178,6 +189,7 @@ if (actual != null)
         Check((await http.SendAsync(canonical)).IsSuccessStatusCode, "persistent local hostname is accepted with subnet filtering intact");
     }
     Check((await http.GetAsync($"http://{actual.Address}:18081/cover/0123456789abcdef")).StatusCode == HttpStatusCode.Unauthorized, "artwork endpoint requires the join credential");
+    Check((await http.GetAsync($"http://{actual.Address}:18081/theme.js")).IsSuccessStatusCode, "embedded theme helper is available");
     Check((await http.GetAsync($"http://{actual.Address}:18081/media.js")).IsSuccessStatusCode, "embedded media helper is available");
     using var request = new HttpRequestMessage(HttpMethod.Get, $"http://{actual.Address}:18081/"); request.Headers.Host = "attacker.example:18081";
     Check((await http.SendAsync(request)).StatusCode == HttpStatusCode.Forbidden, "Host header rejects DNS rebinding");

@@ -2,6 +2,7 @@
 (() => {
   let info = {}, artworkUrl = null, revision = null, request = 0, station = '宿舍之音', playback = 'none';
   const el = id => document.getElementById(id);
+  const theme = () => window.DormCastTheme;
   function metadata() {
     if (!('mediaSession' in navigator) || !window.MediaMetadata) return;
     try {
@@ -9,11 +10,12 @@
       navigator.mediaSession.playbackState = playback;
     } catch { /* Media controls are optional in embedded browsers. */ }
   }
-  function clearCover() {
+  function clearCover(resetTheme = true) {
     el('artwork').hidden = true; el('artwork').removeAttribute('src');
     el('record').classList.remove('has-cover');
     if (artworkUrl) URL.revokeObjectURL(artworkUrl);
     artworkUrl = null;
+    if (resetTheme) theme()?.reset();
   }
   async function update(next, token, name) {
     info = next || {}; station = name || station;
@@ -25,7 +27,7 @@
     const wanted = /^[a-f0-9]{16}$/.test(info.CoverRevision || '') ? info.CoverRevision : null;
     if (wanted === revision) return;
     revision = wanted; const current = ++request;
-    clearCover(); metadata();
+    clearCover(!wanted); metadata();
     if (!wanted) return;
     try {
       const response = await fetch(`/cover/${wanted}`, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' });
@@ -33,9 +35,12 @@
       const blob = await response.blob();
       if (current !== request) return;
       if (blob.size > 2 * 1024 * 1024 || !/^image\/(jpeg|png|webp|gif)$/.test(blob.type)) throw new Error('unsupported cover');
-      artworkUrl = URL.createObjectURL(blob); el('artwork').src = artworkUrl;
-      el('artwork').hidden = false; el('record').classList.add('has-cover'); metadata();
-    } catch { if (current === request) revision = null; }
+      const img = el('artwork');
+      artworkUrl = URL.createObjectURL(blob); img.src = artworkUrl;
+      img.hidden = false; el('record').classList.add('has-cover'); metadata();
+    } catch {
+      if (current === request) { revision = null; clearCover(true); metadata(); }
+    }
   }
   function init(play, pause) {
     try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch {}
@@ -49,7 +54,15 @@
     }
   }
   function state(value) { playback = value; if ('mediaSession' in navigator) { try { navigator.mediaSession.playbackState = value; } catch {} } }
-  function reset() { request++; revision = null; info = {}; clearCover(); state('none'); metadata(); }
-  el('artwork').addEventListener('error', () => { clearCover(); metadata(); });
+  function reset() { request++; revision = null; info = {}; clearCover(true); state('none'); metadata(); }
+  const artwork = el('artwork');
+  artwork.addEventListener('load', () => {
+    if (!artworkUrl || artwork.hidden || !artwork.naturalWidth) return;
+    theme()?.applyFromImage(artwork);
+  });
+  artwork.addEventListener('error', () => {
+    if (!artworkUrl) return;
+    clearCover(true); metadata();
+  });
   window.DormCastMedia = { update, init, state, reset };
 })();

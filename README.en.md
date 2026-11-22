@@ -13,7 +13,7 @@ The native WinUI 3 host displays artwork, artist and album supplied by your play
 - **Host & browser remote control**: in virtual-cable synchronized playback mode, Windows volume keys, the app slider and the browser remote panel stay in sync, letting connected browsers control host play/pause, previous/next track, mute and shared host/broadcast volume (can be toggled in host Sync Settings). Each phone still controls its own hardware volume.
 - **A steadier shared timeline**: 48kHz stereo Opus over WebRTC. The common target starts at 250ms and changes in 50ms steps after an observation period, with automatic reduction after 60 seconds of stability. Compensation runs on the host even when a phone suspends page timers.
 - **Per-device diagnostics**: inspect base-path estimates, current and planned compensation, estimated alignment error, RTT, jitter, buffering, loss and measurement freshness.
-- **Everyday desktop features**: Windows theme and accent integration, translucent window, QR code, iOS home-screen icon, and manual GitHub update checks with installer download.
+- **Everyday desktop & web polish**: desktop host follows Windows theme and accent with a translucent window, QR code, iOS home-screen icon, and manual GitHub update checks; the web receiver dynamically adapts its theme palette to the current album cover's dominant color and falls back to the default green theme when no cover is available.
 
 Delay targets and alignment errors are software estimates. Acoustic testing across multiple physical devices is still outstanding. Browsers and iOS power policies can suspend background playback, and Bluetooth may add unreported hardware delay.
 
