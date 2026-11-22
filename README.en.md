@@ -1,34 +1,128 @@
-[简体中文](README.md) | **English**
+<p align="right">
+  <a href="README.md">简体中文</a> · <strong>English</strong>
+</p>
 
-# 宿舍之音 · DormCast
+<p align="center">
+  <img src="docs/assets/hero-banner.svg" alt="DormCast — Broadcast Windows system audio to every LAN browser in sync" width="100%" />
+</p>
 
-Play music on Windows and listen together. DormCast broadcasts the computer's actual system audio to phones and computers on the same LAN through an ordinary browser.
+<p align="center">
+  <a href="https://github.com/DrivingGodJ/DormCast/releases/latest">
+    <img src="https://img.shields.io/github/v/release/DrivingGodJ/DormCast?style=for-the-badge&color=c9f37f&labelColor=18221b&label=Release" alt="Latest Release" />
+  </a>
+  <img src="https://img.shields.io/badge/Windows-10%2022H2%20%2F%2011%20x64-18221b?style=for-the-badge&labelColor=101612&color=2d4233" alt="Windows 10/11 x64" />
+  <img src="https://img.shields.io/badge/Audio-48kHz%20Opus%20%2F%20WebRTC-18221b?style=for-the-badge&labelColor=101612&color=2d4233" alt="48kHz Opus WebRTC" />
+  <a href="LICENSE">
+    <img src="https://img.shields.io/badge/License-MIT-c9f37f?style=for-the-badge&labelColor=18221b" alt="MIT License" />
+  </a>
+</p>
 
-[Download the Windows installer](https://github.com/DrivingGodJ/DormCast/releases/latest) · [User guide](docs/GUIDE.en.md)
+<p align="center">
+  <a href="https://github.com/DrivingGodJ/DormCast/releases/latest"><strong>⬇️ Download Windows Installer</strong></a>
+  &nbsp;·&nbsp;
+  <a href="docs/GUIDE.en.md"><strong>📖 User Guide</strong></a>
+  &nbsp;·&nbsp;
+  <a href="docs/architecture.md"><strong>⚙️ Architecture (ZH)</strong></a>
+  &nbsp;·&nbsp;
+  <a href="docs/TESTING.md"><strong>🧪 Testing &amp; Limits</strong></a>
+</p>
 
-## One song, several devices
+---
 
-The native WinUI 3 host displays artwork, artist and album supplied by your player. Closing its window keeps broadcasting in the system tray. Listeners scan the QR code or bookmark the persistent join link. The host displays the fixed mDNS link by default; switch its URL and QR code to IPv4 compatibility for devices such as Huawei phones that cannot resolve it. Both entry points remain active together. No account, receiver installation or external audio server is required.
+> **Why DormCast?** One night our dorm wanted to listen to music together—setting up speakers was a hassle, and wearing separate headphones felt isolating. So we built DormCast to broadcast live Windows system audio across the local network, turning everyone's phones, tablets, and laptops into one synchronized speaker through an ordinary browser.
 
-- **Host & browser remote control**: in virtual-cable synchronized playback mode, Windows volume keys, the app slider and the browser remote panel stay in sync, letting connected browsers control host play/pause, previous/next track, mute and shared host/broadcast volume (can be toggled in host Sync Settings). Each phone still controls its own hardware volume.
-- **A steadier shared timeline**: 48kHz stereo Opus over WebRTC. The common target starts at 250ms and changes in 50ms steps after an observation period, with automatic reduction after 60 seconds of stability. Compensation runs on the host even when a phone suspends page timers.
-- **Per-device diagnostics**: inspect base-path estimates, current and planned compensation, estimated alignment error, RTT, jitter, buffering, loss and measurement freshness.
-- **Everyday desktop & web polish**: desktop host follows Windows theme and accent with a translucent window, QR code, iOS home-screen icon, and manual GitHub update checks; the web receiver dynamically adapts its theme palette to the current album cover's dominant color and falls back to the default green theme when no cover is available.
+**No accounts · No receiver app installation · Local LAN only · No external audio servers.**
 
-Delay targets and alignment errors are software estimates. Acoustic testing across multiple physical devices is still outstanding. Browsers and iOS power policies can suspend background playback, and Bluetooth may add unreported hardware delay.
+---
 
-## Start listening
+## Interface & Live Sync Preview
 
-1. Install the latest Release on Windows 10 22H2 or Windows 11 x64. The .NET and WinUI runtime files are included.
-2. Follow the first-use guide: extract the bundled, unchanged official VB-CABLE package, manually run its driver installer as administrator, and reboot when prompted.
-3. Open DormCast, confirm the virtual capture endpoint and physical speaker, then start broadcasting. Connect other devices to the same LAN, scan the code and tap the listening button if autoplay is blocked.
+<p align="center">
+  <img src="docs/assets/ui-showcase.svg" alt="DormCast WinUI 3 Desktop Host and Web Receiver UI Showcase" width="100%" />
+</p>
 
-Each host retains its link, backed up in the current Windows user's registry. Ordinary reinstallation and deletion of application data can recover it. Reinstalling Windows, changing users or deleting both identity records changes the complete join link. Use the host's IP fallback when the network does not support `.local` names.
+---
 
-## Documentation and source
+## Key Features
 
-- [Installation, volume, background playback, firewall and updates](docs/GUIDE.en.md)
-- [Architecture (Chinese)](docs/architecture.md) · [Test results and limits](docs/TESTING.md) · [Acoustic measurement procedure (Chinese)](docs/measurement.md)
-- [Reference projects (Chinese)](docs/reference-projects.md) · [Third-party notices](THIRD-PARTY-NOTICES.md)
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <h3>🔊 Broadcast All Windows System Audio</h3>
+      <p>Captures live Windows audio loopback—music, videos, games, or browser tabs. The native <strong>WinUI 3</strong> translucent host shows album art, artist, and title via SMTC, and keeps broadcasting from the system tray when closed.</p>
+    </td>
+    <td width="50%" valign="top">
+      <h3>📱 Scan to Join · Dual Entry Points</h3>
+      <p>Listeners scan a QR code or bookmark a persistent <code>.local</code> mDNS join link—no app or sign-in needed. Switch URL and QR display to <strong>IPv4 compatibility</strong> for devices (such as some Huawei phones) that cannot resolve mDNS; both entry points stay active simultaneously.</p>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <h3>🎛️ Host &amp; Browser Remote Control (v0.6)</h3>
+      <p>In virtual-cable synced mode, Windows volume keys, the desktop slider, and the browser remote panel stay bi-directionally synced—controlling <strong>play/pause, previous/next track, mute, and shared host/broadcast volume</strong> (can be toggled in Sync Settings). Each phone still controls its own hardware volume.</p>
+    </td>
+    <td width="50%" valign="top">
+      <h3>🎨 Cover-Adaptive Web Theme &amp; Native Polish</h3>
+      <p>The desktop window follows Windows light/dark theme and accent color; the web receiver <strong>dynamically adapts its theme palette to the current album cover's dominant color</strong> (falling back to the default forest-lime theme when no artwork is available). Includes iOS home-screen icon and SHA-256 verified GitHub update checks.</p>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <h3>⏱️ Steadier Shared Timeline</h3>
+      <p>Streams <strong>48kHz stereo Opus over WebRTC</strong>. The common delay target starts at <code>250ms</code>, adjusts in <code>50ms</code> steps after observation, and automatically reduces after 60 seconds of stability. Send compensation runs on the host even when mobile browsers throttle background timers.</p>
+    </td>
+    <td width="50%" valign="top">
+      <h3>📊 Per-Device Real-Time Diagnostics</h3>
+      <p>Expand device diagnostics on the host to inspect base-path latency, current and planned compensation, estimated alignment error, RTT, jitter, buffering, packet loss, and measurement freshness per listener.</p>
+    </td>
+  </tr>
+</table>
 
-DormCast's own code uses the [MIT License](LICENSE). Dependencies and the bundled driver retain their own licenses. SIPSorcery's license includes additional geographic restrictions; users must install the unchanged official VB-CABLE package manually. See the third-party notices.
+---
+
+## Audio Pipeline & Shared Timeline
+
+<p align="center">
+  <img src="docs/assets/sync-architecture.svg" alt="DormCast Audio Pipeline and Host Compensation Visualization" width="100%" />
+</p>
+
+> [!NOTE]
+> **Known Boundaries**: Delay targets and alignment errors are software estimates; acoustic verification across multiple physical devices is still outstanding. Browser and iOS power policies may suspend background tabs, and Bluetooth output can add unreported hardware delay (configurable per-device as an extra hardware offset in the web details drawer).
+
+---
+
+## Quick Start
+
+1. **Install the latest Release**
+   Download `DormCast-x.y.z-Setup-x64.exe` from [Releases](https://github.com/DrivingGodJ/DormCast/releases/latest) (**Windows 10 22H2 / Windows 11 x64**; self-contained with .NET and WinUI runtimes included).
+2. **Install the bundled official VB-CABLE driver (first use)**
+   Follow the setup guide to extract the unchanged official `VBCABLE_Driver_Pack46.zip`, run its installer as administrator, and reboot when prompted (isolates raw audio from delayed speaker playback; skip if already installed).
+3. **Start broadcasting & scan to listen**
+   Open DormCast, confirm the virtual capture endpoint and physical speaker, and click **Start Broadcast**. Connect other devices to the same Wi-Fi, scan the QR code, and tap Listen if browser autoplay is blocked.
+
+<details>
+<summary><strong>📌 Persistent Join Identity &amp; LAN Security Boundaries</strong></summary>
+
+- **Persistent Identity**: Each host derives a stable `.local` hostname and random 256-bit join key, backed up in both `%LOCALAPPDATA%/DormCast/join-identity.json` and `HKCU/Software/DrivingGodJ/DormCast/Identity`. Normal reinstallation or clearing app data preserves the link; reinstalling Windows, changing users, or removing both records generates a new join link.
+- **IPv4 Fallback**: Networks or devices that do not support `.local` mDNS resolution can switch the host display to **IPv4 Compatibility** without disconnecting existing listeners.
+- **Strict LAN Scope**: Binds only to the selected private IPv4 interface with same-subnet filtering, disables external STUN/TURN, encrypts WebRTC audio with DTLS-SRTP, and never uploads audio to external servers (internet access occurs only when manually checking for GitHub Releases).
+
+</details>
+
+---
+
+## Documentation & Source
+
+| Document | Overview |
+| :--- | :--- |
+| [User &amp; Developer Guide](docs/GUIDE.en.md) | Driver setup, linked volume, background playback, firewall rules, updates, and local builds |
+| [Technical Architecture (Chinese)](docs/architecture.md) | WASAPI Loopback, Opus encoding, HostMonitor, shared timeline math, and network boundaries |
+| [Test Results &amp; Limits](docs/TESTING.md) | Automated checks, observed measurements, and hardware caveats |
+| [Acoustic Measurement Procedure (Chinese)](docs/measurement.md) | Cross-device physical acoustic latency verification protocol |
+| [Reference Projects (Chinese)](docs/reference-projects.md) · [Third-Party Notices](THIRD-PARTY-NOTICES.md) | Upstream libraries, regional license terms, and driver notices |
+
+---
+
+## License
+
+DormCast's own code is released under the [MIT License](LICENSE). Third-party dependencies and the bundled driver retain their respective licenses—note that SIPSorcery's license includes additional geographic restrictions, and the unchanged official VB-CABLE package must be installed manually by the user. See [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
