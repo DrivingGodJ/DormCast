@@ -73,9 +73,11 @@ public sealed class BroadcastHost : IAsyncDisposable
         }
         finally { _lifecycle.Release(); }
     }
+    public static Version AppVersion { get; } = NormalizeVersion(typeof(BroadcastHost).Assembly.GetName().Version);
+    static Version NormalizeVersion(Version? v) => v == null ? new Version(0, 0, 0) : new Version(v.Major, v.Minor, Math.Max(0, v.Build));
     public string Diagnostics() => JsonSerializer.Serialize(new
     {
-        version = "0.6.0", utc = DateTimeOffset.UtcNow, running = Running,
+        version = AppVersion.ToString(), utc = DateTimeOffset.UtcNow, running = Running,
         endpoint = _server?.BaseUrl, fixedHost = JoinIdentity.Persistent.HostName, addressStatus = AddressStatus, nowPlaying = NowPlaying, hostControl = HostControl,
         audio = _audio?.Snapshot(), clients = Clients, synchronization = SyncState, hostPlayback = _monitor?.Snapshot(),
         latencyNote = "RTT / jitter / jitterBuffer are not measured acoustic end-to-end latency."

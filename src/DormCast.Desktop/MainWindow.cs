@@ -28,9 +28,11 @@ public sealed partial class MainWindow : Window
     bool _busy, _exiting, _presenting, _ticking;
     long _lastInput;
     string? _coverRevision;
+    static readonly Version CurrentVersion = NormalizeVersion(typeof(MainWindow).Assembly.GetName().Version);
+    static Version NormalizeVersion(Version? v) => v == null ? BroadcastHost.AppVersion : new Version(v.Major, v.Minor, Math.Max(0, v.Build));
     public MainWindow()
     {
-        Title = "宿舍之音 · DormCast 0.6.1 · WinUI 3";
+        Title = $"宿舍之音 · DormCast {CurrentVersion} · WinUI 3";
         _window = WinRT.Interop.WindowNative.GetWindowHandle(this);
         AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "dormcast.ico"));
         var scale = GetDpiForWindow(_window) / 96.0;
