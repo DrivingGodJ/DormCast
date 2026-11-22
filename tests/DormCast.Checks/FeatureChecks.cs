@@ -55,6 +55,12 @@ static class FeatureChecks
         using var http = new HttpClient(new FixtureHandler(payload)); using var client = new GitHubReleaseClient(http);
         using var limitedHttp = new HttpClient(new RateLimitHandler(Encoding.UTF8.GetBytes(Release()))); using var limitedClient = new GitHubReleaseClient(limitedHttp);
         Check((await limitedClient.CheckAsync(new Version(0, 4, 0)))?.Version == new Version(0, 5, 0), "anonymous API rate limit falls back to the public Release manifest");
+        Check((await limitedClient.CheckSilentlyAsync(new Version(0, 4, 0)))?.Version == new Version(0, 5, 0), "silent startup update check returns newer release when available");
+        Check(await limitedClient.CheckSilentlyAsync(new Version(0, 5, 0)) == null, "silent startup update check returns null when already up to date");
+        using var offlineHttp = new HttpClient(new FailingHandler()); using var offlineClient = new GitHubReleaseClient(offlineHttp);
+        Check(await offlineClient.CheckSilentlyAsync(new Version(0, 4, 0)) == null, "silent startup update check stays silent when offline or unreachable");
+        using var corruptHttp = new HttpClient(new FixtureHandler("not-json"u8.ToArray())); using var corruptClient = new GitHubReleaseClient(corruptHttp);
+        Check(await corruptClient.CheckSilentlyAsync(new Version(0, 4, 0)) == null, "silent startup update check stays silent on malformed response");
         var directory = Path.GetFullPath("test-results/v0.5/update-fixtures"); var path = await client.DownloadAsync(update, directory);
         Check(File.ReadAllBytes(path).SequenceEqual(payload), "downloaded installer bytes pass SHA-256 verification"); File.Delete(path);
         try { await client.DownloadAsync(update with { Sha256 = new string('0', 64) }, directory); throw new Exception("Bad hash accepted"); } catch (InvalidDataException) { Check(!Directory.EnumerateFiles(directory).Any(), "hash mismatch removes the incomplete update"); }
@@ -65,4 +71,6 @@ static class FeatureChecks
     { protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct) { ct.ThrowIfCancellationRequested(); return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(bytes), RequestMessage = request }); } }
     sealed class RateLimitHandler(byte[] json) : HttpMessageHandler
     { protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct) => Task.FromResult(new HttpResponseMessage(request.RequestUri!.Host == "api.github.com" ? HttpStatusCode.Forbidden : HttpStatusCode.OK) { Content = new ByteArrayContent(json), RequestMessage = request }); }
+    sealed class FailingHandler : HttpMessageHandler
+    { protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct) => throw new HttpRequestException("Simulated network failure"); }
 }

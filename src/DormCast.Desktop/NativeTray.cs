@@ -6,12 +6,16 @@ namespace DormCast.Desktop;
 sealed class NativeTray : IDisposable
 {
     const uint CallbackMessage = 0x8001;
+    const uint NifInfo = 0x10;
+    const uint NiifInfo = 0x01;
+    const uint NinBalloonUserClick = 0x405;
     readonly nint _window, _idle = MakeIcon(false), _live = MakeIcon(true);
     readonly SubclassProc _procedure;
     readonly DispatcherQueue _queue;
     readonly Action _open;
     readonly Func<Task> _stop, _exit;
     readonly uint _taskbarCreated = RegisterWindowMessageW("TaskbarCreated");
+    Action? _notificationClick;
     bool _running;
     public NativeTray(nint window, DispatcherQueue queue, Action open, Func<Task> stop, Func<Task> exit)
     {
@@ -21,13 +25,24 @@ sealed class NativeTray : IDisposable
     NotifyData Data() => new() { Size = (uint)Marshal.SizeOf<NotifyData>(), Window = _window, Id = 1, Flags = 7, Callback = CallbackMessage, Icon = _running ? _live : _idle, Tip = _running ? "宿舍之音 · 正在广播" : "宿舍之音 · 未广播" };
     void Add() { var data = Data(); Shell_NotifyIconW(0, ref data); data.Version = 4; Shell_NotifyIconW(4, ref data); }
     public void SetBroadcasting(bool value) { if (_running == value) return; _running = value; var data = Data(); Shell_NotifyIconW(1, ref data); }
+    public void ShowNotification(string title, string message, Action? onClick = null)
+    {
+        _notificationClick = onClick;
+        var data = Data();
+        data.Flags |= NifInfo;
+        data.InfoTitle = title.Length > 63 ? title[..63] : title;
+        data.Info = message.Length > 255 ? message[..255] : message;
+        data.InfoFlags = NiifInfo;
+        Shell_NotifyIconW(1, ref data);
+    }
     nint WindowProcedure(nint hwnd, uint message, nuint wParam, nint lParam, nuint id, nuint data)
     {
         if (message == _taskbarCreated) Add();
         if (message == CallbackMessage)
         {
             var action = (uint)((long)lParam & 0xffff);
-            if (action is 0x202 or 0x400 or 0x401) _queue.TryEnqueue(() => _open());
+            if (action == NinBalloonUserClick) _queue.TryEnqueue(() => { var click = _notificationClick; if (click != null) click(); else _open(); });
+            else if (action is 0x202 or 0x400 or 0x401) _queue.TryEnqueue(() => _open());
             else if (action is 0x205 or 0x7b) ShowMenu();
             return 0;
         }

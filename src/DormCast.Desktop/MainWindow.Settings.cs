@@ -9,7 +9,8 @@ public sealed partial class MainWindow
 {
     async Task SettingsAsync()
     {
-        if (_busy || _host.Running) return;
+        if (_busy || _host.Running || _dialogOpen) return;
+        _dialogOpen = true;
         try
         {
             _settings.IsEnabled = false; var devices = await Task.Run(AudioDevices.RenderDevices);
@@ -23,7 +24,7 @@ public sealed partial class MainWindow
             if (await dialog.ShowAsync() == ContentDialogResult.Primary) { await Task.Run(_options.Save); _detail.Text = "同步设置已保存。"; }
         }
         catch (Exception ex) { _detail.Text = ex.Message; }
-        finally { _settings.IsEnabled = true; }
+        finally { _dialogOpen = false; _settings.IsEnabled = true; }
     }
     async Task SaveDiagnosticsAsync()
     {

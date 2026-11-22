@@ -27,6 +27,12 @@ public sealed class GitHubReleaseClient : IDisposable
             return Parse(await ReadLatestAsync("https://github.com/" + Repository + "/releases/latest/download/update.json", current, false, ct).ConfigureAwait(false), current);
         }
     }
+    public async Task<ReleaseUpdate?> CheckSilentlyAsync(Version current, CancellationToken ct = default)
+    {
+        try { return await CheckAsync(current, ct).ConfigureAwait(false); }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { return null; }
+        catch { return null; }
+    }
     async Task<byte[]> ReadLatestAsync(string url, Version current, bool api, CancellationToken ct)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct); timeout.CancelAfter(TimeSpan.FromSeconds(25));

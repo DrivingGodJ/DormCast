@@ -63,7 +63,7 @@
     </td>
     <td width="50%" valign="top">
       <h3>🎨 Cover-Adaptive Web Theme &amp; Native Polish</h3>
-      <p>The desktop window follows Windows light/dark theme and accent color; the web receiver <strong>dynamically adapts its theme palette to the current album cover's dominant color</strong> (falling back to the default forest-lime theme when no artwork is available). Includes iOS home-screen icon and SHA-256 verified GitHub update checks.</p>
+      <p>The desktop window follows Windows light/dark theme and accent color; the web receiver <strong>dynamically adapts its theme palette to the current album cover's dominant color</strong> (falling back to the default forest-lime theme when no artwork is available). Includes iOS home-screen icon, silent background startup update checks (notifying only when a newer release exists), and manual SHA-256 verified GitHub updates.</p>
     </td>
   </tr>
   <tr>
@@ -105,7 +105,7 @@
 
 - **Persistent Identity**: Each host derives a stable `.local` hostname and random 256-bit join key, backed up in both `%LOCALAPPDATA%/DormCast/join-identity.json` and `HKCU/Software/DrivingGodJ/DormCast/Identity`. Normal reinstallation or clearing app data preserves the link; reinstalling Windows, changing users, or removing both records generates a new join link.
 - **IPv4 Fallback**: Networks or devices that do not support `.local` mDNS resolution can switch the host display to **IPv4 Compatibility** without disconnecting existing listeners.
-- **Strict LAN Scope**: Binds only to the selected private IPv4 interface with same-subnet filtering, disables external STUN/TURN, encrypts WebRTC audio with DTLS-SRTP, and never uploads audio to external servers (internet access occurs only when manually checking for GitHub Releases).
+- **Strict LAN Scope**: Binds only to the selected private IPv4 interface with same-subnet filtering, disables external STUN/TURN, encrypts WebRTC audio with DTLS-SRTP, and never uploads audio to external servers (internet access occurs only for the silent startup update check or when manually checking GitHub Releases).
 
 </details>
 

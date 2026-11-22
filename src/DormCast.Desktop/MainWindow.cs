@@ -24,8 +24,9 @@ public sealed partial class MainWindow : Window
     readonly NativeTray _tray;
     BroadcastOptions _options = BroadcastOptions.Load();
     readonly bool _firstRun = !BroadcastOptions.HasSavedSettings;
+    readonly CancellationTokenSource _exitCancel = new();
     readonly nint _window;
-    bool _busy, _exiting, _presenting, _ticking;
+    bool _busy, _exiting, _presenting, _ticking, _dialogOpen;
     long _lastInput;
     string? _coverRevision;
     static readonly Version CurrentVersion = NormalizeVersion(typeof(MainWindow).Assembly.GetName().Version);
@@ -67,6 +68,7 @@ public sealed partial class MainWindow : Window
             if (_firstRun && defaults.source != null && defaults.output != null) { _options = _options with { HostPlayback = true, CaptureDeviceId = defaults.source.Id, OutputDeviceId = defaults.output.Id }; _volume.Configure(defaults.output.Id); await Task.Run(_options.Save); }
             if (defaults.source == null) { _detail.Text = "主机同步播放需要虚拟声卡，请先完成驱动安装。"; await DriverGuideAsync(); }
             await RefreshNetworkAsync();
+            _ = CheckUpdateOnStartupAsync();
         }
         catch (Exception ex) { _detail.Text = ex.Message; AppLog.Write("Desktop initialization", ex); }
     }
@@ -132,10 +134,10 @@ public sealed partial class MainWindow : Window
     void ShowMain() { AppWindow.Show(); Activate(); }
     async Task ExitAsync()
     {
-        if (_exiting) return; _exiting = true; _timer.Stop(); _root.IsHitTestVisible = false;
+        if (_exiting) return; _exiting = true; _exitCancel.Cancel(); _timer.Stop(); _root.IsHitTestVisible = false;
         try { await Task.Run(async () => { await _host.DisposeAsync(); _volume.Dispose(); await _music.DisposeAsync(); }); }
         catch (Exception ex) { AppLog.Write("Desktop cleanup", ex); }
-        finally { _appearance.ColorValuesChanged -= AppearanceChanged; _tray.Dispose(); Close(); Application.Current.Exit(); }
+        finally { _appearance.ColorValuesChanged -= AppearanceChanged; _tray.Dispose(); _exitCancel.Dispose(); Close(); Application.Current.Exit(); }
     }
     [DllImport("user32.dll")] static extern uint GetDpiForWindow(nint window);
 }
