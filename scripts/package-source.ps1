@@ -1,5 +1,6 @@
 $ErrorActionPreference='Stop'
 Add-Type -AssemblyName System.IO.Compression
+Add-Type -AssemblyName System.IO.Compression.FileSystem
 $projectRoot = Split-Path -Parent $PSScriptRoot
 [xml]$project = Get-Content -LiteralPath (Join-Path $projectRoot 'src/DormCast/DormCast.csproj') -Raw
 $version = [string]$project.Project.PropertyGroup.Version

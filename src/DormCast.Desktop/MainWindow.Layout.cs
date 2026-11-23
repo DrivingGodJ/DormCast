@@ -33,9 +33,10 @@ public sealed partial class MainWindow
         _root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); _root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); _root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) }); _root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         var titlebar = new Grid { Height = 32, Background = new SolidColorBrush(Colors.Transparent), Margin = new Thickness(-28, 0, -28, 0), Padding = new Thickness(28, 0, 140, 0) };
         titlebar.Children.Add(Label("宿舍之音  ·  DormCast", 12)); _root.Children.Add(titlebar); ExtendsContentIntoTitleBar = true; SetTitleBar(titlebar);
-        var header = Columns(1, 1); Cell(header, Stack(Label("宿舍之音", 30), Label("DORMCAST  /  局域网音乐广播", 12)), 0);
-        var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
-        var exit = ActionButton("退出程序"); exit.Click += async (_, _) => await ExitAsync(); actions.Children.Add(_state); actions.Children.Add(_settings); actions.Children.Add(exit); Cell(header, actions, 1); Grid.SetRow(header, 1); _root.Children.Add(header);
+        var header = new Grid { ColumnSpacing = 20 }; header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        Cell(header, Stack(Label("宿舍之音", 30), Label("DORMCAST  /  局域网音乐广播", 12)), 0);
+        var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
+        var exit = ActionButton("退出程序"); exit.Click += async (_, _) => await ExitAsync(); actions.Children.Add(_state); actions.Children.Add(_update); actions.Children.Add(_settings); actions.Children.Add(exit); Cell(header, actions, 1); Grid.SetRow(header, 1); _root.Children.Add(header);
         var content = new StackPanel { Spacing = 20 }; var hero = Columns(1.7, 1);
         var volumeHeader = Columns(1, 0.2); Cell(volumeHeader, Label("系统与广播音量", 18), 0); _percent.HorizontalAlignment = HorizontalAlignment.Right; Cell(volumeHeader, _percent, 1); AutomationProperties.SetName(_slider, "系统与广播统一音量");
         var coverBox = new Grid { Width = 190, Height = 190, Background = Brush(38, 49, 40), CornerRadius = new CornerRadius(12) }; _coverFallback.HorizontalAlignment = HorizontalAlignment.Center; coverBox.Children.Add(_coverFallback); coverBox.Children.Add(_cover);
@@ -47,7 +48,7 @@ public sealed partial class MainWindow
         var audioRow = Columns(1.35, 1); Cell(audioRow, _output, 0); var virtualPanel = Stack(_virtualStatus, _driverHelp); virtualPanel.VerticalAlignment = VerticalAlignment.Bottom; Cell(audioRow, virtualPanel, 1);
         var startRow = Columns(1, 1); Cell(startRow, Stack(_network, _refresh), 0); _start.HorizontalAlignment = HorizontalAlignment.Stretch; _start.FontSize = 18; _start.MinHeight = 56; Cell(startRow, _start, 1); content.Children.Add(Card(Stack(config, audioRow, startRow)));
         var metrics = Columns(1, 1); Cell(metrics, Stack(Label("正在收听", 13), _listeners), 0); Cell(metrics, Stack(Label("统一延迟目标", 13), _sync), 1); content.Children.Add(Card(metrics));
-        var diagnostics = ActionButton("导出诊断"); diagnostics.Click += async (_, _) => await SaveDiagnosticsAsync(); content.Children.Add(new Expander { Header = "设备与同步详情", HorizontalAlignment = HorizontalAlignment.Stretch, Content = Stack(_clientCards, Label("基础路径、播放时间线和偏差均为软件估计；浏览器输出值不一定包含后台媒体和蓝牙的额外缓冲。", 12), diagnostics) }); content.Children.Add(_update);
+        var diagnostics = ActionButton("导出诊断"); diagnostics.Click += async (_, _) => await SaveDiagnosticsAsync(); content.Children.Add(new Expander { Header = "设备与同步详情", HorizontalAlignment = HorizontalAlignment.Stretch, Content = Stack(_clientCards, Label("基础路径、播放时间线和偏差均为软件估计；浏览器输出值不一定包含后台媒体和蓝牙的额外缓冲。", 12), diagnostics) });
         var scroll = new ScrollViewer { Content = content, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled }; Grid.SetRow(scroll, 2); _root.Children.Add(scroll); Grid.SetRow(_detail, 3); _root.Children.Add(_detail);
         _root.SizeChanged += (_, _) => { var size = _root.ActualWidth < 1000 ? 140 : 190; if (_cover.Width != size) _cover.Width = _cover.Height = coverBox.Width = coverBox.Height = size; };
     }
