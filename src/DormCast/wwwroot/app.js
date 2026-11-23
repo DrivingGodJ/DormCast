@@ -483,7 +483,8 @@
           el('listen').disabled = true; el('listen').textContent = '由桌面统一播放';
           el('syncStatus').textContent = '本机网页只查看状态，不参与最慢接收端计算。';
         }
-        el('tech').textContent = `Opus · 48kHz · 立体声 · ${message.frameMs}ms 帧 · 局域网直连`;
+        const bitrate = Number.isFinite(message.bitrate) ? message.bitrate : 256000;
+        el('tech').textContent = `Opus ${Math.round(bitrate / 1000)}kbps · 48kHz · 立体声 · ${message.frameMs}ms 帧 · 局域网直连`;
         const peer = new RTCPeerConnection({ iceServers: [], bundlePolicy: 'max-bundle' }); pc = peer;
         const transceiver = peer.addTransceiver('audio', { direction: 'recvonly' });
         const opus = RTCRtpReceiver.getCapabilities?.('audio')?.codecs?.filter(c => c.mimeType.toLowerCase() === 'audio/opus');
@@ -506,7 +507,7 @@
         };
         const offer = await peer.createOffer();
         // Request stereo explicitly; opus/48000/2 alone does not enable stereo receive in Chromium.
-        offer.sdp = offer.sdp.replace(/(a=fmtp:\d+[^\r\n]*useinbandfec=1[^\r\n]*)/g, '$1;stereo=1;sprop-stereo=1;maxaveragebitrate=128000');
+        offer.sdp = offer.sdp.replace(/(a=fmtp:\d+[^\r\n]*useinbandfec=1[^\r\n]*)/g, `$1;stereo=1;sprop-stereo=1;maxaveragebitrate=${bitrate}`);
         await peer.setLocalDescription(offer);
         send({ type: 'offer', sdp: offer.sdp });
         send({ type: 'visibility', hidden: document.hidden });

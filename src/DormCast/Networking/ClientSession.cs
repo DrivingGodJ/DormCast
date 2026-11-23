@@ -60,7 +60,7 @@ public sealed class ClientSession(WebSocket socket, BroadcastServer server, IPAd
             writer = WriteLoopAsync(ct);
             var initialSync = server.Synchronization.GetState(server.NowMs);
             var initialHoldMs = server.Options.SyncEnabled ? Math.Clamp(initialSync.PlayoutTargetMs - 110, 0, 1800) : 0;
-            Send(new { type = "welcome", id = Id, name = server.Options.Name, bufferMs = server.Options.BufferMs, frameMs = server.Options.FrameMs, sampleRate = 48000, serverMs = server.NowMs, syncEnabled = server.Options.SyncEnabled, serverCompensation = true, syncTargetMs = initialSync.TargetMs, timelineStartMs = AudioEngine.TimelineStartMs, localMonitorOnly = LocalPreview, nowPlaying = server.NowPlaying, hostControl = server.HostControl });
+            Send(new { type = "welcome", id = Id, name = server.Options.Name, bufferMs = server.Options.BufferMs, frameMs = server.Options.FrameMs, bitrate = AudioEngine.BitrateBps, sampleRate = 48000, serverMs = server.NowMs, syncEnabled = server.Options.SyncEnabled, serverCompensation = true, syncTargetMs = initialSync.TargetMs, timelineStartMs = AudioEngine.TimelineStartMs, localMonitorOnly = LocalPreview, nowPlaying = server.NowPlaying, hostControl = server.HostControl });
             _peer = new ListenerPeer(server.Interface, signalAddress, server.Options.FrameMs, initialHoldMs) { Signal = Send };
             heartbeat = HeartbeatAsync(ct);
             using var negotiate = CancellationTokenSource.CreateLinkedTokenSource(ct);

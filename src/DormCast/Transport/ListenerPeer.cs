@@ -45,7 +45,7 @@ public sealed class ListenerPeer : IAsyncDisposable
         // LAN address for obfuscated browser host candidates. ICE still verifies the UDP port.
         _pc.GetRtpChannel().MdnsGetAddresses = _ => Task.FromResult(new[] { signalAddress });
         var format = new AudioFormat(111, "opus", 48000, 2,
-            $"minptime={frameMs};stereo=1;sprop-stereo=1;useinbandfec=1;maxaveragebitrate=128000");
+            $"minptime={frameMs};stereo=1;sprop-stereo=1;useinbandfec=1;maxaveragebitrate={AudioEngine.BitrateBps}");
         _pc.addTrack(new MediaStreamTrack(format, MediaStreamStatusEnum.SendOnly));
         _pc.OnAudioFormatsNegotiated += formats => _payloadType = formats.First().FormatID;
         _pc.onconnectionstatechange += state =>

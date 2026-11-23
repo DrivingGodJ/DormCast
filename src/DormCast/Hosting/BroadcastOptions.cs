@@ -1,4 +1,5 @@
 using System.Text.Json;
+using DormCast.Audio;
 
 namespace DormCast.Hosting;
 
@@ -22,7 +23,7 @@ public sealed record BroadcastOptions(string Name = "宿舍之音", int Port = 8
     public static bool HasSavedSettings => File.Exists(SettingsPath);
     public static BroadcastOptions Load()
     {
-        try { var result = JsonSerializer.Deserialize<BroadcastOptions>(File.ReadAllText(SettingsPath)) ?? new(); result.Validate(); return result; }
+        try { var result = JsonSerializer.Deserialize<BroadcastOptions>(File.ReadAllText(SettingsPath)) ?? new(); result.Validate(); return result with { FrameMs = AudioEngine.DefaultFrameMs }; }
         catch { return new(); }
     }
     public void Save()

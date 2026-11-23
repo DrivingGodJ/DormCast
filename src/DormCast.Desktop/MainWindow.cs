@@ -42,7 +42,6 @@ public sealed partial class MainWindow : Window
         AppWindow.Resize(new SizeInt32(width, height)); AppWindow.Move(new PointInt32(display.X + (display.Width - width) / 2, display.Y + (display.Height - height) / 2));
         BuildLayout(); Content = _root; InitializeTheme();
         _name.Text = _options.Name; _port.Value = _options.Port;
-        _frame.Items.Add("20ms · 稳定音乐"); _frame.Items.Add("10ms · 较低延迟"); _frame.SelectedIndex = _options.FrameMs == 10 ? 1 : 0;
         _volume = new SpeakerVolumeController(_options.OutputDeviceId); _music.Start();
         _tray = new NativeTray(_window, DispatcherQueue, ShowMain, StopAsync, ExitAsync);
         AppWindow.Closing += (_, e) => { if (!_exiting) { e.Cancel = true; AppWindow.Hide(); } };
@@ -160,7 +159,7 @@ public sealed partial class MainWindow : Window
     }
     void SetBusy(bool value)
     {
-        _busy = value; foreach (var control in new Control[] { _name, _nic, _frame, _port, _output, _settings, _refresh }) control.IsEnabled = !value && !_host.Running;
+        _busy = value; foreach (var control in new Control[] { _name, _nic, _port, _output, _settings, _refresh }) control.IsEnabled = !value && !_host.Running;
         _joinMode.IsEnabled = _copy.IsEnabled = !value && _host.Running;
         UpdateStartAvailability();
     }
@@ -194,7 +193,7 @@ public sealed partial class MainWindow : Window
             {
                 Name = _name.Text.Trim(),
                 Port = (int)_port.Value,
-                FrameMs = _frame.SelectedIndex == 1 ? 10 : 20,
+                FrameMs = AudioEngine.DefaultFrameMs,
                 SyncEnabled = true,
                 HostPlayback = true,
                 CaptureDeviceId = _virtualCable.Id,

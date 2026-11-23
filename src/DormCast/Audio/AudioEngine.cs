@@ -11,6 +11,8 @@ public sealed record EncodedFrame(byte[] Payload, uint RtpTimestamp, uint Durati
 public sealed class AudioEngine(int frameMs, string? captureDeviceId = null) : IDisposable
 {
     public const int TimelineStartMs = 40;
+    public const int DefaultFrameMs = 20;
+    public const int BitrateBps = 256000;
     readonly PcmRing _ring = new(48000 * 2 * 60 / 1000);
     readonly CancellationTokenSource _stop = new();
     LoopbackSource? _source;
@@ -26,7 +28,7 @@ public sealed class AudioEngine(int frameMs, string? captureDeviceId = null) : I
     public double NowMs => Stopwatch.GetElapsedTime(EpochTicks).TotalMilliseconds;
     public object Snapshot() => new
     {
-        device = _source?.DeviceName, capture = _source?.Status, frameMs, sampleRate = 48000, channels = 2, bitrate = 128000, masterGain = Volatile.Read(ref _masterGain),
+        device = _source?.DeviceName, capture = _source?.Status, frameMs, sampleRate = 48000, channels = 2, bitrate = BitrateBps, masterGain = Volatile.Read(ref _masterGain),
         capturedSamples = _source?.CapturedSamples ?? 0, peak = _source?.Peak ?? 0,
         actualCaptureBufferMs = _source?.ActualBufferMs ?? 0, captureDiscontinuities = _source?.Discontinuities ?? 0,
         frames = Interlocked.Read(ref _frames), sourceSamples = Interlocked.Read(ref _sequence),
@@ -52,13 +54,13 @@ public sealed class AudioEngine(int frameMs, string? captureDeviceId = null) : I
         {
             using var encoder = OpusCodecFactory.CreateEncoder(48000, 2, OpusApplication.OPUS_APPLICATION_AUDIO);
             using var localEncoder = EncodeLocalMonitor ? OpusCodecFactory.CreateEncoder(48000, 2, OpusApplication.OPUS_APPLICATION_AUDIO) : null;
-            encoder.Bitrate = 128000; encoder.Complexity = 5;
+            encoder.Bitrate = BitrateBps; encoder.Complexity = 8;
             encoder.SignalType = OpusSignal.OPUS_SIGNAL_MUSIC;
             encoder.UseVBR = true; encoder.UseConstrainedVBR = true;
             encoder.UseDTX = false; encoder.UseInbandFEC = true; encoder.PacketLossPercent = 5;
-            if (localEncoder != null) { localEncoder.Bitrate = 128000; localEncoder.Complexity = 5; localEncoder.SignalType = OpusSignal.OPUS_SIGNAL_MUSIC; localEncoder.UseDTX = false; }
+            if (localEncoder != null) { localEncoder.Bitrate = BitrateBps; localEncoder.Complexity = 8; localEncoder.SignalType = OpusSignal.OPUS_SIGNAL_MUSIC; localEncoder.UseDTX = false; }
             var frameSize = 48 * frameMs;
-            var pcm = new float[frameSize * 2]; var encoded = new byte[1000];
+            var pcm = new float[frameSize * 2]; var encoded = new byte[1200];
             long sampleIndex = 0;
             var next = EpochTicks + Stopwatch.Frequency * TimelineStartMs / 1000;
             var period = Stopwatch.Frequency * frameMs / 1000;

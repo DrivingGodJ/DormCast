@@ -16,7 +16,7 @@ The official package is distributed unchanged. Its license requires manual insta
 
 ## Broadcasting and volume
 
-Select the LAN adapter, port and 10/20ms frame size, then start broadcasting. While broadcasting, Windows Console / Multimedia default output is temporarily routed to the virtual cable. Shared-mode WASAPI loopback captures it, and the host renders delayed audio to the selected physical speaker. Stop or next-start crash recovery restores previous defaults only if DormCast still owns the route. Players that explicitly select a different output must be changed to the system default or CABLE Input.
+Select the LAN adapter and port (audio is locked to high-quality 20ms / 256kbps stereo Opus), then start broadcasting. While broadcasting, Windows Console / Multimedia default output is temporarily routed to the virtual cable. Shared-mode WASAPI loopback captures it, and the host renders delayed audio to the selected physical speaker. Stop or next-start crash recovery restores previous defaults only if DormCast still owns the route. Players that explicitly select a different output must be changed to the system default or CABLE Input.
 
 Other devices join the same LAN and scan the QR code or open the full link. Tap the listening button if autoplay is blocked. The main button controls local listening on that browser, while the Host Remote Control panel underneath controls host play/pause, previous/next track, mute and host volume (toggleable under host Sync Settings). Closing the host window hides it to the tray; left-click restores it, and the menu can stop or exit. Exiting releases capture, peers and network ports.
 
