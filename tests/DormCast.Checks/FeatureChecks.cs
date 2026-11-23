@@ -61,7 +61,7 @@ static class FeatureChecks
         var update = GitHubReleaseClient.Parse(Encoding.UTF8.GetBytes(Release()), new Version(0, 4, 0))!;
         Check(update.Version == new Version(0, 5, 0) && GitHubReleaseClient.Parse(Encoding.UTF8.GetBytes(Release()), new Version(0, 5, 0)) == null, "release comparison handles newer and current versions numerically");
         var appVer = DormCast.Hosting.BroadcastHost.AppVersion;
-        Check(appVer.Revision == -1 && appVer >= new Version(0, 7, 2), $"assembly AppVersion is normalized 3-part version ({appVer})");
+        Check(appVer.Revision == -1 && appVer >= new Version(0, 7, 3), $"assembly AppVersion is normalized 3-part version ({appVer})");
         var selfRelease = JsonSerializer.Serialize(new { draft = false, prerelease = false, tag_name = $"v{appVer}", body = "Self", assets = new[] { new { name = $"DormCast-{appVer}-Setup-x64.exe", size = payload.Length, browser_download_url = $"https://github.com/DrivingGodJ/DormCast/releases/download/v{appVer}/DormCast-{appVer}-Setup-x64.exe", digest = "sha256:" + digest } } });
         Check(GitHubReleaseClient.Parse(Encoding.UTF8.GetBytes(selfRelease), appVer) == null, "current release does not prompt to update to itself");
         Check(GitHubReleaseClient.Parse(Encoding.UTF8.GetBytes(Release(prerelease: true)), new Version(0, 4, 0)) == null, "automatic updater ignores prereleases");

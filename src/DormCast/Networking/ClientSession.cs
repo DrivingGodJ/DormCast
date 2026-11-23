@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Threading.Channels;
 using DormCast.Audio;
 using DormCast.Hosting;
+using DormCast.Synchronization;
 using DormCast.Transport;
 
 namespace DormCast.Networking;
@@ -18,6 +19,7 @@ public sealed class ClientSession(WebSocket socket, BroadcastServer server, IPAd
     ListenerPeer? _peer;
     JsonElement? _metrics;
     bool _background, _authenticated;
+    volatile bool _compensationReady;
     double? _baseLatency;
     double? _metricsAt, _measuredAt;
     public string Id { get; } = Guid.NewGuid().ToString("N")[..8];
@@ -117,13 +119,22 @@ public sealed class ClientSession(WebSocket socket, BroadcastServer server, IPAd
                             var uncertainty = report.TryGetProperty("uncertaintyMs", out var u) && u.ValueKind == JsonValueKind.Number ? u.GetDouble() : double.NaN;
                             // Source-clock latency already contains our sender hold. Remove it before choosing the slowest base path.
                             var baseline = natural - (_peer?.SendDelayMs ?? 0);
+                            SyncState? sync = null;
                             if (server.Synchronization.Report(Id, $"{Name} · {Id[..4]}", Math.Max(0, baseline), uncertainty, playing && !LocalPreview, server.NowMs))
                             {
                                 _baseLatency = server.Synchronization.Baseline(Id); _measuredAt = server.NowMs;
                                 if (server.Synchronization.Samples(Id) >= 3 && _baseLatency is { } stableBase)
-                                    _peer?.SetCompensation(server.Synchronization.GetState(server.NowMs).PlayoutTargetMs - stableBase);
+                                {
+                                    sync = server.Synchronization.GetState(server.NowMs);
+                                    _peer?.SetCompensation(sync.PlayoutTargetMs - stableBase);
+                                }
+                            }
+                            else if (!playing)
+                            {
+                                _compensationReady = false;
                             }
                             server.Synchronization.SetBackground(Id, _background);
+                            if (playing && !_compensationReady) _compensationReady = SendTimeline(sync);
                         }
                         break;
                     default: throw new ArgumentException("Unknown signalling message");
@@ -185,6 +196,17 @@ public sealed class ClientSession(WebSocket socket, BroadcastServer server, IPAd
         }
         finally { _stop.Cancel(); }
     }
+    bool SendTimeline(SyncState? precomputed = null)
+    {
+        var sync = precomputed ?? server.Synchronization.GetState(server.NowMs);
+        var senderMs = _peer?.SendDelayMs ?? 0;
+        var plannedMs = _peer?.PlannedSendDelayMs ?? 0;
+        var converged = server.Synchronization.Samples(Id) >= 3 && (_peer == null || Math.Abs(senderMs - plannedMs) <= 12);
+        Send(new { type = "timeline", serverMs = server.NowMs, audio = server.AudioSnapshot, nowPlaying = server.NowPlaying, hostControl = server.HostControl,
+            compensation = new { senderMs, plannedMs, baselineMs = _baseLatency, background = _background, ready = converged },
+            sync = new { enabled = server.Options.SyncEnabled, targetMs = sync.TargetMs, playoutTargetMs = sync.PlayoutTargetMs, desiredMs = sync.DesiredMs, direction = sync.Direction, referenceDevice = sync.ReferenceDevice, measuredDevices = sync.MeasuredDevices, maximumMs = sync.MaximumMs } });
+        return converged;
+    }
     async Task HeartbeatAsync(CancellationToken ct)
     {
         while (!ct.IsCancellationRequested)
@@ -192,9 +214,7 @@ public sealed class ClientSession(WebSocket socket, BroadcastServer server, IPAd
             await Task.Delay(1000, ct).ConfigureAwait(false);
             var sync = server.Synchronization.GetState(server.NowMs);
             if (server.Options.SyncEnabled && server.Synchronization.Samples(Id) >= 3 && _baseLatency is { } baseline) _peer?.SetCompensation(sync.PlayoutTargetMs - baseline);
-            Send(new { type = "timeline", serverMs = server.NowMs, audio = server.AudioSnapshot, nowPlaying = server.NowPlaying, hostControl = server.HostControl,
-                compensation = new { senderMs = _peer?.SendDelayMs ?? 0, baselineMs = _baseLatency, background = _background, ready = server.Synchronization.Samples(Id) >= 3 },
-                sync = new { enabled = server.Options.SyncEnabled, targetMs = sync.TargetMs, playoutTargetMs = sync.PlayoutTargetMs, desiredMs = sync.DesiredMs, direction = sync.Direction, referenceDevice = sync.ReferenceDevice, measuredDevices = sync.MeasuredDevices, maximumMs = sync.MaximumMs } });
+            _compensationReady = SendTimeline(sync);
         }
     }
 }

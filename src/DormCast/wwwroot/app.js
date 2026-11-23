@@ -23,17 +23,17 @@
   if (!token) { try { token = localStorage.getItem(tokenStorageKey) || ''; } catch {} }
   if (!token) token = readCookie('DormCastJoin');
   const clientName = window.DormCastAndroid ? 'Android 安卓客户端' : /iPhone|iPad/.test(navigator.userAgent) ? 'iPhone / iPad' : /Android/.test(navigator.userAgent) ? 'Android 浏览器' : /Macintosh/.test(navigator.userAgent) ? 'Mac 浏览器' : '电脑浏览器';
-  const { SourceClock, sourceLatency, delayPlan } = window.DormCastSync;
+  const { SourceClock, sourceLatency, delayPlan, evaluateSyncGate } = window.DormCastSync;
   let ws, pc, audioContext, source, gain, fallback, stream, silentSink, delayNode, mediaOutput, mediaDestination;
-  let generation = 0, retryTimer, statsTimer, pingTimer, syncTimer, retries = 0, ended = false, paused = false;
+  let generation = 0, retryTimer, statsTimer, pingTimer, syncTimer, fadeTimer = null, retries = 0, ended = false, paused = false;
   let previous = null, candidates = [], targetMs = 60, connected = false, hinted = false;
   let sourceClock = new SourceClock(), syncEnabled = true, commonTargetMs = 250, playoutTargetMs = 250, timelineStartMs = 40;
-  let naturalWindow = [], naturalMs = null, syncReady = false, ramp = null, plannedDelay = null, lastSyncReport = 0, lastPing = 0;
+  let naturalWindow = [], naturalMs = null, syncReady = false, syncAlignedSince = null, syncWaitStartedAt = 0, ramp = null, plannedDelay = null, lastSyncReport = 0, lastPing = 0;
   let playbackStartedAt = 0, bufferEstimateMs = 60, fallbackTiming = false, referenceDevice = '等待测量';
   let localMonitorOnly = false;
   let syncDirection = 'stable', desiredTargetMs = 250;
-  let hostReadyAt = 0, displayError = null;
-  let serverCompensation = false, senderDelayMs = 0, measuredAt = 0;
+  let displayError = null;
+  let serverCompensation = false, senderDelayMs = 0, plannedSenderDelayMs = 0, hostCompensationReady = false, measuredAt = 0;
   let wsReady = false, remoteControl = { enabled: false, volume: { available: false, level: 0.5, muted: false, deviceName: null } };
   let hostNowPlaying = { Playing: false, HasSession: false };
   let volumeDragging = false, lastVolumeInputAt = 0, pendingVolumeLevel = null, volumeTimer = null, feedbackTimer = null, feedbackActive = false;
@@ -60,6 +60,33 @@
     });
   }
   initIosPwaGuide();
+  function cancelFadeIn() {
+    if (fadeTimer) { clearInterval(fadeTimer); fadeTimer = null; }
+  }
+  function resetSyncLock() {
+    cancelFadeIn();
+    syncReady = false;
+    syncAlignedSince = null;
+    syncWaitStartedAt = 0;
+    hostCompensationReady = false;
+    displayError = null;
+    naturalWindow = [];
+    naturalMs = null;
+  }
+  function fadeInDirectAudio(audio) {
+    cancelFadeIn();
+    if (!audio) return;
+    try { audio.volume = 0.05; } catch {}
+    audio.muted = false;
+    let step = 0;
+    const steps = 8;
+    fadeTimer = setInterval(() => {
+      if (audio !== mediaOutput || paused || !syncReady) { cancelFadeIn(); return; }
+      step++;
+      try { audio.volume = step >= steps ? 1 : Math.min(1, 0.05 + 0.95 * (step / steps)); } catch {}
+      if (step >= steps) cancelFadeIn();
+    }, 20);
+  }
   function addedDelaySeconds() {
     if (!ramp || !audioContext) return 0;
     const fraction = Math.max(0, Math.min(1, (audioContext.currentTime - ramp.at) / ramp.duration));
@@ -69,7 +96,10 @@
     if (!syncEnabled) { el('syncStatus').textContent = '主机未启用统一同步。'; return; }
     el('groupTarget').textContent = `${Math.round(commonTargetMs)} ms`;
     const directAudio = useDirectBackgroundAudio();
-    if (!sourceClock.ready) return;
+    if (!sourceClock.ready) {
+      if (!syncReady && isPlaying()) el('syncStatus').textContent = '正在校准网络时钟，对齐后自动出声…';
+      return;
+    }
     if (directAudio) { if (!isPlaying()) return; }
     else if (!audioContext || audioContext.state !== 'running') return;
     const receiver = pc?.getReceivers().find(r => r.track.kind === 'audio');
@@ -79,7 +109,7 @@
     fallbackTiming = measurement === null;
     if (fallbackTiming) {
       if (serverCompensation && document.hidden) { el('syncStatus').textContent = '后台由主机持续补偿，本机测量等待恢复前台。'; return; }
-      if (performance.now() - playbackStartedAt < 4000) { el('syncStatus').textContent = '正在等待源播放时间戳。'; return; }
+      if (performance.now() - playbackStartedAt < 4000) { el('syncStatus').textContent = '正在等待源播放时间戳，对齐后自动出声…'; return; }
       // Compatibility playback must remain audible even when a browser omits RTP playout timestamps.
       // Its buffer estimate never participates in choosing the slowest measured device.
       measurement = bufferEstimateMs + sourceClock.best.rtt / 2 + outputMs;
@@ -94,28 +124,68 @@
       lastSyncReport = performance.now();
     }
     if (corrected - (serverCompensation ? senderDelayMs : 0) > 1940) {
+      cancelFadeIn();
       if (directAudio && mediaOutput) mediaOutput.muted = true;
       else if (gain && audioContext) gain.gain.setTargetAtTime(0, audioContext.currentTime, 0.03);
       el('syncStatus').textContent = '此设备超过 2 秒同步上限，请重连或检查蓝牙/网络。';
       return;
     }
-    if (naturalWindow.length < 3 || (!directAudio && !delayNode)) return;
-    if (serverCompensation && !fallbackTiming && (!hostReadyAt || performance.now() < hostReadyAt)) return;
-    if (directAudio) {
-      if (!syncReady) {
-        syncReady = true;
-        if (!paused && mediaOutput) { mediaOutput.muted = false; mediaOutput.volume = 1; }
-        if (connected && !paused) el('message').textContent = '主机播放什么，这里就听到什么。';
+    if (!directAudio && !delayNode) return;
+    const direction = syncDirection === 'decreasing' ? `正在下调至 ${Math.round(desiredTargetMs)}ms。` : syncDirection === 'settling' ? `观察稳定后下调至 ${Math.round(desiredTargetMs)}ms。` : '';
+    const detailText = () => serverCompensation
+      ? `${direction}主机补偿 ${Math.round(senderDelayMs)}ms · 参考：${referenceDevice}。${directAudio ? '已直连原生音频播放器以增强后台保活。' : backgroundMode ? '后台媒体输出的额外缓冲可在详情中校准。' : ''}`
+      : `${direction}基础 ${Math.round(naturalMs)}ms + 硬件校准 ${hardwareMs}ms + 自动补偿 ${Math.round(addedDelaySeconds() * 1000)}ms。参考：${referenceDevice}。`;
+    if (!syncReady) {
+      const current = directAudio ? 0 : addedDelaySeconds();
+      const plan = directAudio || serverCompensation ? { seconds: 0, duration: 0.25 } : delayPlan(commonTargetMs, naturalMs, hardwareMs, current);
+      const effectiveError = serverCompensation ? corrected - playoutTargetMs : corrected + plan.seconds * 1000 - playoutTargetMs;
+      const now = performance.now();
+      const gate = evaluateSyncGate({
+        sampleCount: naturalWindow.length,
+        fallbackTiming,
+        serverCompensation,
+        hostReady: hostCompensationReady,
+        senderDelayMs,
+        plannedSenderDelayMs,
+        errorMs: effectiveError,
+        alignedSinceMs: syncAlignedSince,
+        nowMs: now,
+        elapsedMs: syncWaitStartedAt ? now - syncWaitStartedAt : 0
+      });
+      syncAlignedSince = gate.alignedSinceMs;
+      if (!gate.unlock) {
+        const signed = `${effectiveError > 0 ? '+' : ''}${Math.round(effectiveError)}ms`;
+        const waitHint = gate.reason === 'measuring'
+          ? '正在测量网络与设备延迟，对齐后自动出声…'
+          : gate.reason === 'confirming'
+            ? `即将完成对齐（偏差 ${signed}），马上出声…`
+            : gate.reason === 'compensating'
+              ? `正在等待主机补偿收敛（当前偏差 ${signed}），对齐后自动出声…`
+              : `正在等待同步对齐（当前偏差 ${signed}），对齐后自动出声…`;
+        el('syncStatus').textContent = waitHint;
+        el('syncDetail').textContent = detailText();
+        if (connected && !paused) status('等待同步对齐', waitHint, true);
+        return;
       }
-    } else {
-      const current = addedDelaySeconds(), plan = serverCompensation ? { seconds: 0, duration: 0.25 } : delayPlan(commonTargetMs, naturalMs, hardwareMs, current);
-      if (!syncReady) {
+      if (directAudio) {
+        syncReady = true;
+        if (!paused && mediaOutput) fadeInDirectAudio(mediaOutput);
+      } else {
         delayNode.delayTime.setValueAtTime(plan.seconds, audioContext.currentTime);
         ramp = { from: plan.seconds, to: plan.seconds, at: audioContext.currentTime, duration: 1 };
-        plannedDelay = plan.seconds; syncReady = true;
-        if (!paused) gain.gain.setTargetAtTime(1, audioContext.currentTime, 0.04);
-        if (connected && !paused) el('message').textContent = '主机播放什么，这里就听到什么。';
-      } else if (Math.abs(plan.seconds - plannedDelay) > 0.008) {
+        plannedDelay = plan.seconds;
+        syncReady = true;
+        if (!paused) gain.gain.setTargetAtTime(1, audioContext.currentTime, 0.05);
+      }
+      const readyMsg = gate.reason === 'fallback'
+        ? '已启用兼容播放，主机播放什么，这里就听到什么。'
+        : gate.reason === 'timeout'
+          ? '已开始播放，仍在后台平滑对齐统一延迟。'
+          : '已同步对齐，主机播放什么，这里就听到什么。';
+      if (connected && !paused) status('正在收听', readyMsg, true);
+    } else if (!directAudio) {
+      const current = addedDelaySeconds(), plan = serverCompensation ? { seconds: 0, duration: 0.25 } : delayPlan(commonTargetMs, naturalMs, hardwareMs, current);
+      if (Math.abs(plan.seconds - plannedDelay) > 0.008) {
         delayNode.delayTime.cancelScheduledValues(audioContext.currentTime);
         delayNode.delayTime.setValueAtTime(current, audioContext.currentTime);
         delayNode.delayTime.linearRampToValueAtTime(plan.seconds, audioContext.currentTime + plan.duration);
@@ -126,8 +196,7 @@
     displayError = displayError === null ? instantaneousError : displayError + (instantaneousError - displayError) * 0.25;
     const error = displayError;
     el('syncStatus').textContent = document.hidden && serverCompensation ? '后台由主机持续补偿；实际播放测量需恢复前台确认。' : fallbackTiming ? '兼容播放：浏览器缺少源时间戳，缓冲估计无法保证同步。' : `${Math.abs(error) > 15 ? '正在平滑对齐' : '已按源时间线补偿'} · 平滑估计偏差 ${error > 0 ? '+' : ''}${Math.round(error)}ms`;
-    const direction = syncDirection === 'decreasing' ? `正在下调至 ${Math.round(desiredTargetMs)}ms。` : syncDirection === 'settling' ? `观察稳定后下调至 ${Math.round(desiredTargetMs)}ms。` : '';
-    el('syncDetail').textContent = serverCompensation ? `${direction}主机补偿 ${Math.round(senderDelayMs)}ms · 参考：${referenceDevice}。${directAudio ? '已直连原生音频播放器以增强后台保活。' : backgroundMode ? '后台媒体输出的额外缓冲可在详情中校准。' : ''}` : `${direction}基础 ${Math.round(naturalMs)}ms + 硬件校准 ${hardwareMs}ms + 自动补偿 ${Math.round(addedDelaySeconds() * 1000)}ms。参考：${referenceDevice}。`;
+    el('syncDetail').textContent = detailText();
   }
   function status(text, message, live = false) {
     el('connection').textContent = text;
@@ -259,10 +328,10 @@
         if (!mediaOutput) {
           mediaOutput = audioElement();
           mediaOutput.srcObject = stream;
-          mediaOutput.muted = syncEnabled && !syncReady;
           mediaOutput.volume = 1;
           mediaOutput.addEventListener('pause', interrupted);
         }
+        mediaOutput.muted = syncEnabled && !syncReady;
         await mediaOutput.play();
       } else {
         // Chromium needs a playing media element to pull remote WebRTC audio into Web Audio.
@@ -294,13 +363,16 @@
           if (audioContext.state !== 'running' && syncReady) {
             source.disconnect(); delayNode.disconnect(); delayNode = audioContext.createDelay(2);
             source.connect(delayNode); delayNode.connect(gain); gain.gain.value = 0;
-            syncReady = false; ramp = null; plannedDelay = null; naturalWindow = [];
+            resetSyncLock(); ramp = null; plannedDelay = null;
+          } else if (syncEnabled && !syncReady && gain) {
+            gain.gain.setValueAtTime(0, audioContext.currentTime);
           }
           const resume = audioContext.resume(); await Promise.all([resume, sinkPlayback, mediaOutput?.play()]);
         } else { await sinkPlayback; await fallback.play(); }
       }
       paused = false;
       if (!playbackStartedAt) playbackStartedAt = performance.now();
+      if (syncEnabled && !syncReady && !syncWaitStartedAt) syncWaitStartedAt = performance.now();
       if (useDirectBackgroundAudio()) {
         if (mediaOutput && (!syncEnabled || syncReady)) { mediaOutput.muted = false; mediaOutput.volume = 1; }
       } else if (gain && (!syncEnabled || syncReady)) {
@@ -308,7 +380,7 @@
       }
       if (!isPlaying()) throw new Error('autoplay');
       el('listen').textContent = '暂停本机收听';
-      status(connected ? '正在收听' : '正在连接', syncEnabled && !syncReady ? '正在快速对齐统一延迟，约需 1 秒后开始出声。' : '主机播放什么，这里就听到什么。', connected);
+      status(connected ? (syncEnabled && !syncReady ? '等待同步对齐' : '正在收听') : '正在连接', syncEnabled && !syncReady ? '正在等待同步对齐，对齐后自动出声…' : '主机播放什么，这里就听到什么。', connected);
       send({ type: 'visibility', hidden: document.hidden });
     } catch {
       el('listen').textContent = '开始收听 ↗';
@@ -336,8 +408,8 @@
     const oldWs = ws, oldPc = pc, oldContext = audioContext, oldFallback = fallback, oldSink = silentSink, oldOutput = mediaOutput;
     ws = pc = audioContext = source = gain = fallback = stream = silentSink = delayNode = mediaOutput = mediaDestination = null;
     connected = false; previous = null; candidates = []; sourceClock = new SourceClock();
-    naturalWindow = []; naturalMs = null; syncReady = false; ramp = null; plannedDelay = null; lastSyncReport = 0;
-    playbackStartedAt = 0; fallbackTiming = false; senderDelayMs = 0; measuredAt = 0;
+    resetSyncLock(); ramp = null; plannedDelay = null; lastSyncReport = 0;
+    playbackStartedAt = 0; fallbackTiming = false; senderDelayMs = 0; plannedSenderDelayMs = 0; measuredAt = 0;
     if (oldWs) { oldWs.onclose = oldWs.onmessage = oldWs.onerror = null; oldWs.close(); }
     if (oldPc) { oldPc.onconnectionstatechange = oldPc.onicecandidate = oldPc.ontrack = null; oldPc.close(); }
     for (const audio of [oldFallback, oldSink, oldOutput]) if (audio) { audio.removeEventListener('pause', interrupted); audio.pause(); audio.srcObject = null; audio.remove(); }
@@ -404,7 +476,7 @@
         el('title').textContent = message.name; document.title = `${message.name} · 一起听`;
         void media.update(message.nowPlaying, token, message.name);
         applyHostState(message.nowPlaying, message.hostControl);
-        targetMs = message.bufferMs; syncEnabled = message.syncEnabled !== false; commonTargetMs = message.syncTargetMs || 250; playoutTargetMs = commonTargetMs; hostReadyAt = 0; displayError = null; timelineStartMs = message.timelineStartMs ?? 40;
+        targetMs = message.bufferMs; syncEnabled = message.syncEnabled !== false; commonTargetMs = message.syncTargetMs || 250; playoutTargetMs = commonTargetMs; resetSyncLock(); timelineStartMs = message.timelineStartMs ?? 40;
         serverCompensation = message.serverCompensation === true;
         localMonitorOnly = message.localMonitorOnly === true;
         if (localMonitorOnly) {
@@ -428,6 +500,7 @@
           if (connected) {
             retries = 0;
             if (localMonitorOnly) status('主机网页预览', '主机声音由桌面软件同步播放，网页不重复出声，避免回授。', true);
+            else if (isPlaying() && !paused && syncEnabled && !syncReady) status('等待同步对齐', '正在等待同步对齐，对齐后自动出声…', true);
             else status(isPlaying() && !paused ? '正在收听' : '已连接', paused ? '已暂停本机，广播仍在继续。' : isPlaying() ? '主机播放什么，这里就听到什么。' : '点「开始收听」即可播放声音。', true);
           } else if (['failed', 'disconnected'].includes(peer.connectionState)) reconnect();
         };
@@ -456,7 +529,11 @@
         break;
       }
       case 'timeline':
-        if (message.compensation) { senderDelayMs = message.compensation.senderMs; if (message.compensation.ready && !hostReadyAt) hostReadyAt = performance.now() + 200; }
+        if (message.compensation) {
+          senderDelayMs = message.compensation.senderMs;
+          plannedSenderDelayMs = message.compensation.plannedMs ?? senderDelayMs;
+          hostCompensationReady = message.compensation.ready === true;
+        }
         if (message.sync) { commonTargetMs = message.sync.targetMs; playoutTargetMs = message.sync.playoutTargetMs ?? commonTargetMs; desiredTargetMs = message.sync.desiredMs; syncDirection = message.sync.direction; referenceDevice = message.sync.referenceDevice; el('groupTarget').textContent = `${Math.round(commonTargetMs)} ms`; }
         void media.update(message.nowPlaying, token);
         applyHostState(message.nowPlaying, message.hostControl);
@@ -506,11 +583,12 @@
   }
   function pauseListening() {
     paused = true;
+    resetSyncLock();
     if (audioContext && gain) gain.gain.setTargetAtTime(0, audioContext.currentTime, 0.03);
-    if (mediaOutput) { mediaOutput.muted = false; mediaOutput.pause(); }
+    if (mediaOutput) { mediaOutput.muted = syncEnabled; mediaOutput.pause(); }
     fallback?.pause();
     send({ type: 'sync-report', data: { playing: false } });
-    el('listen').textContent = '继续收听 ↗'; status('本机已暂停', '点击继续后将收听当前实时音频。', connected);
+    el('listen').textContent = '继续收听 ↗'; status('本机已暂停', '点击继续后将重新同步对齐并恢复出声。', connected);
   }
   window.DormCastPlayer = { play: () => void play(), pause: pauseListening, toggle: () => { if (isPlaying()) pauseListening(); else void play(); } };
   media.init(() => void play(), pauseListening);
@@ -581,7 +659,7 @@
     }
     oldContext?.removeEventListener('statechange', interrupted);
     if (oldContext) await oldContext.close().catch(() => {});
-    syncReady = false; ramp = null; plannedDelay = null; naturalWindow = []; playbackStartedAt = 0;
+    resetSyncLock(); ramp = null; plannedDelay = null; playbackStartedAt = 0;
     if (!paused && !localMonitorOnly) await play();
   });
   el('hardwareOffset').addEventListener('change', e => {

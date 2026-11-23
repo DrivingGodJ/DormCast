@@ -29,5 +29,43 @@
     const seconds = Math.max(0, Math.min(2, (targetMs - naturalMs - correctionMs) / 1000));
     return { seconds, duration: Math.max(0.25, Math.abs(seconds - currentSeconds) / 0.04) };
   }
-  root.DormCastSync = { SourceClock, sourceLatency, delayPlan };
+  function evaluateSyncGate({
+    sampleCount = 0,
+    fallbackTiming = false,
+    serverCompensation = true,
+    hostReady = false,
+    senderDelayMs = 0,
+    plannedSenderDelayMs = 0,
+    errorMs = Number.NaN,
+    alignedSinceMs = null,
+    nowMs = 0,
+    elapsedMs = 0,
+    toleranceMs = 25,
+    hostToleranceMs = 12,
+    requiredStableMs = 300,
+    maxWaitMs = 10000
+  }) {
+    if (sampleCount < 3) {
+      return { unlock: false, reason: 'measuring', alignedSinceMs: null };
+    }
+    if (fallbackTiming) {
+      return { unlock: true, reason: 'fallback', alignedSinceMs: nowMs };
+    }
+    const hostConverged = !serverCompensation || (
+      hostReady === true &&
+      Number.isFinite(senderDelayMs) &&
+      Number.isFinite(plannedSenderDelayMs) &&
+      Math.abs(senderDelayMs - plannedSenderDelayMs) <= hostToleranceMs
+    );
+    const aligned = hostConverged && Number.isFinite(errorMs) && Math.abs(errorMs) <= toleranceMs;
+    const nextAlignedSince = aligned ? (alignedSinceMs !== null ? alignedSinceMs : nowMs) : null;
+    if (aligned && nextAlignedSince !== null && nowMs - nextAlignedSince >= requiredStableMs) {
+      return { unlock: true, reason: 'locked', alignedSinceMs: nextAlignedSince };
+    }
+    if (Number.isFinite(elapsedMs) && elapsedMs >= maxWaitMs) {
+      return { unlock: true, reason: 'timeout', alignedSinceMs: nextAlignedSince };
+    }
+    return { unlock: false, reason: aligned ? 'confirming' : hostConverged ? 'aligning' : 'compensating', alignedSinceMs: nextAlignedSince };
+  }
+  root.DormCastSync = { SourceClock, sourceLatency, delayPlan, evaluateSyncGate };
 })(typeof window === 'undefined' ? globalThis : window);
