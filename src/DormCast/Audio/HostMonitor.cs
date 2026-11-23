@@ -69,7 +69,7 @@ public sealed class HostMonitor(AudioEngine engine, string outputId, SyncCoordin
                         if (discontinuity) cursor = desired;
                         _alignmentErrorMs = (cursor - desired) / 48;
                         // Smooth rate correction converges device alignment faster while avoiding abrupt buffer jumps.
-                        var step = 1 + Math.Clamp((desired - cursor) / 24000, -0.035, 0.035);
+                        var step = 1 + Math.Clamp((desired - cursor) / 16000, -0.05, 0.05);
                         cursor = _history.Read(cursor, step, buffer.AsSpan(0, frames * 2));
                         if (discontinuity) for (var i = 0; i < Math.Min(frames, 240); i++)
                         { buffer[i * 2] *= i / 240f; buffer[i * 2 + 1] *= i / 240f; }

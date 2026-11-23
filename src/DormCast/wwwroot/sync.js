@@ -27,7 +27,7 @@
   function delayPlan(targetMs, naturalMs, correctionMs, currentSeconds) {
     if (![targetMs, naturalMs, correctionMs, currentSeconds].every(Number.isFinite)) return null;
     const seconds = Math.max(0, Math.min(2, (targetMs - naturalMs - correctionMs) / 1000));
-    return { seconds, duration: Math.max(0.25, Math.abs(seconds - currentSeconds) / 0.05) };
+    return { seconds, duration: Math.max(0.2, Math.abs(seconds - currentSeconds) / 0.08) };
   }
   root.DormCastSync = { SourceClock, sourceLatency, delayPlan };
 })(typeof window === 'undefined' ? globalThis : window);

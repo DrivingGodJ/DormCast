@@ -203,7 +203,7 @@ public sealed partial class MainWindow : Window
             options.Validate();
             await Task.Run(async () => { options.Save(); await _host.StartAsync(options, nic); }); _options = options;
             _useIpv4Join = false; _joinMode.SelectedIndex = 0; await RefreshJoinAsync();
-            _tray.SetBroadcasting(true); _state.Text = "● 正在广播"; _detail.Text = "已自动启用虚拟声卡同步广播；mDNS 与 IPv4 始终同时可用。关闭窗口会隐藏到托盘。";
+            _tray.SetBroadcasting(true); _state.Text = "● 正在广播"; _detail.Text = "已自动启用虚拟声卡同步广播；请确保所有设备连接在同一个 Wi-Fi / 局域网中。关闭窗口会隐藏到托盘。";
         }
         catch (Exception ex) { _detail.Text = $"无法开始广播：{ex.Message}"; AppLog.Write("Start failed", ex); }
         finally { SetBusy(false); }

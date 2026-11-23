@@ -1,0 +1,240 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/dc_bg">
+
+    <ScrollView
+        android:id="@+id/homeContainer"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="20dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="宿舍之音"
+                android:textColor="@color/dc_text"
+                android:textSize="28sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="DORMCAST · 安卓局域网收听端"
+                android:textColor="@color/dc_accent"
+                android:textSize="12sp"
+                android:letterSpacing="0.12" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:background="@color/dc_surface"
+                android:orientation="vertical"
+                android:padding="14dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="同一网络提示"
+                    android:textColor="@color/dc_accent"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:lineSpacingMultiplier="1.3"
+                    android:text="请确保手机与广播电脑连接在同一个 Wi-Fi / 局域网中才能发现与收听（不支持跨网段或移动数据）。首次连接主机需在 App 内扫描主机二维码完成配对，后续可直接点击已保存房间进入。"
+                    android:textColor="@color/dc_muted"
+                    android:textSize="13sp" />
+            </LinearLayout>
+
+            <Button
+                android:id="@+id/btnScanQr"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:layout_marginTop="16dp"
+                android:backgroundTint="@color/dc_accent"
+                android:text="扫码配对加入广播"
+                android:textColor="@color/dc_ink"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <EditText
+                    android:id="@+id/inputJoinUrl"
+                    android:layout_width="0dp"
+                    android:layout_height="46dp"
+                    android:layout_weight="1"
+                    android:background="@color/dc_raised"
+                    android:hint="或粘贴完整加入链接（含 #join=...）"
+                    android:inputType="textUri"
+                    android:paddingHorizontal="12dp"
+                    android:singleLine="true"
+                    android:textColor="@color/dc_text"
+                    android:textColorHint="@color/dc_muted"
+                    android:textSize="13sp" />
+
+                <Button
+                    android:id="@+id/btnConnectUrl"
+                    android:layout_width="wrap_content"
+                    android:layout_height="46dp"
+                    android:layout_marginStart="8dp"
+                    android:backgroundTint="@color/dc_raised"
+                    android:text="连接"
+                    android:textColor="@color/dc_text" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="22dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="已配对的播放源"
+                    android:textColor="@color/dc_text"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+
+                <Button
+                    android:id="@+id/btnRefreshLan"
+                    style="?android:attr/borderlessButtonStyle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="36dp"
+                    android:minWidth="0dp"
+                    android:paddingHorizontal="10dp"
+                    android:text="刷新探测"
+                    android:textColor="@color/dc_accent"
+                    android:textSize="13sp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/savedRoomsList"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:orientation="vertical" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
+                android:text="局域网内发现的广播源"
+                android:textColor="@color/dc_text"
+                android:textSize="15sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/discoveredHint"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="正在扫描同一 Wi-Fi 下的宿舍之音主机…"
+                android:textColor="@color/dc_muted"
+                android:textSize="12sp" />
+
+            <LinearLayout
+                android:id="@+id/discoveredList"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:orientation="vertical" />
+
+            <Button
+                android:id="@+id/btnBatteryOptimize"
+                android:layout_width="match_parent"
+                android:layout_height="46dp"
+                android:layout_marginTop="24dp"
+                android:backgroundTint="@color/dc_surface"
+                android:text="开启后台保活白名单（澎湃OS / MIUI 推荐）"
+                android:textColor="@color/dc_accent"
+                android:textSize="13sp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="已启用原生媒体前台服务与锁屏通知以防息屏断流。如仍被系统清理，请在系统「省电策略」中选择无限制并锁定后台任务。"
+                android:textColor="@color/dc_muted"
+                android:textSize="12sp" />
+        </LinearLayout>
+    </ScrollView>
+
+    <LinearLayout
+        android:id="@+id/playerContainer"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:background="@color/dc_surface"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingHorizontal="12dp">
+
+            <Button
+                android:id="@+id/btnBackRooms"
+                style="?android:attr/borderlessButtonStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:minWidth="0dp"
+                android:paddingHorizontal="8dp"
+                android:text="← 切换房间"
+                android:textColor="@color/dc_accent"
+                android:textSize="13sp" />
+
+            <TextView
+                android:id="@+id/txtCurrentRoom"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:ellipsize="end"
+                android:gravity="center"
+                android:singleLine="true"
+                android:textColor="@color/dc_text"
+                android:textSize="13sp" />
+
+            <Button
+                android:id="@+id/btnReloadPage"
+                style="?android:attr/borderlessButtonStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:minWidth="0dp"
+                android:paddingHorizontal="8dp"
+                android:text="刷新"
+                android:textColor="@color/dc_muted"
+                android:textSize="13sp" />
+        </LinearLayout>
+
+        <WebView
+            android:id="@+id/webView"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+    </LinearLayout>
+
+</FrameLayout>

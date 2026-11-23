@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.DormCast" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/dc_accent</item>
+        <item name="colorOnPrimary">@color/dc_ink</item>
+        <item name="android:windowBackground">@color/dc_bg</item>
+        <item name="android:statusBarColor">@color/dc_bg</item>
+        <item name="android:navigationBarColor">@color/dc_bg</item>
+    </style>
+</resources>

@@ -9,7 +9,7 @@ namespace DormCast.Desktop;
 public sealed partial class MainWindow
 {
     readonly Grid _root = new() { Padding = new Thickness(28, 4, 28, 20), RowSpacing = 16, RequestedTheme = ElementTheme.Default };
-    readonly TextBlock _state = Label("未广播", 14), _detail = Label("连接同一个 Wi-Fi，把此刻的音乐分享出去。", 14), _song = Label("你的音乐，正在这里。", 30), _artist = Label("等待播放器提供歌曲信息", 18), _album = Label("", 14), _capture = Label("开启广播后自动通过虚拟声卡采集", 13), _network = Label("检查局域网…", 13), _listeners = Label("0 台设备", 22), _sync = Label("等待设备测量", 22), _speaker = Label("正在连接实际扬声器", 13), _percent = Label("—", 16), _virtualStatus = Label("正在检测虚拟声卡…", 13);
+    readonly TextBlock _state = Label("未广播", 14), _detail = Label("请确保电脑与所有收听设备连接在同一个 Wi-Fi / 局域网中，才能正常发现与收听。", 14), _song = Label("你的音乐，正在这里。", 30), _artist = Label("等待播放器提供歌曲信息", 18), _album = Label("", 14), _capture = Label("开启广播后自动通过虚拟声卡采集", 13), _network = Label("检查局域网…", 13), _listeners = Label("0 台设备", 22), _sync = Label("等待设备测量", 22), _speaker = Label("正在连接实际扬声器", 13), _percent = Label("—", 16), _virtualStatus = Label("正在检测虚拟声卡…", 13);
     readonly StackPanel _clientCards = new() { Spacing = 12 };
     readonly Image _cover = new() { Width = 190, Height = 190, Stretch = Stretch.UniformToFill }, _qr = new() { Width = 184, Height = 184, Stretch = Stretch.Uniform };
     readonly TextBlock _coverFallback = Label("◉", 66);
@@ -18,7 +18,7 @@ public sealed partial class MainWindow
     readonly NumberBox _port = new() { Header = "端口", Minimum = 1024, Maximum = 65535, SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Compact };
     readonly Slider _slider = new() { Minimum = 0, Maximum = 100, StepFrequency = 1, IsEnabled = false };
     readonly RadioButtons _joinMode = new() { Header = "接入方式（同时可用）", MaxColumns = 2, Items = { "mDNS 固定", "IPv4 兼容" }, SelectedIndex = 0, IsEnabled = false };
-    readonly TextBlock _joinHint = Label("默认显示可收藏的固定链接。手机打不开时可选 IPv4 兼容。", 12);
+    readonly TextBlock _joinHint = Label("所有设备必须连接在同一个 Wi-Fi / 局域网中才能使用。默认显示固定链接，手机打不开时可切 IPv4 兼容。", 12);
     readonly Button _start = ActionButton("开始广播", true), _copy = ActionButton("复制当前链接"), _settings = ActionButton("同步设置"), _refresh = ActionButton("刷新网卡与设备"), _update = ActionButton("检查更新"), _driverHelp = ActionButton("查看虚拟声卡安装指引");
     static SolidColorBrush Brush(byte r, byte g, byte b) => new(ColorHelper.FromArgb(255, r, g, b));
     static TextBlock Label(string text, double size) => new() { Text = text, FontSize = size, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };

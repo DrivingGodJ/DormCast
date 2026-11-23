@@ -3,10 +3,48 @@
   let info = {}, artworkUrl = null, revision = null, request = 0, station = '宿舍之音', playback = 'none';
   const el = id => document.getElementById(id);
   const theme = () => window.DormCastTheme;
+  const fallbackIcon = () => {
+    try { return new URL('/icon-512.png', location.origin).href; } catch { return '/icon-512.png'; }
+  };
+  function notifyAndroidMedia() {
+    try {
+      window.DormCastAndroid?.onMediaUpdate?.(
+        info.Title || station,
+        info.Artist || '局域网实时广播',
+        info.Album || '',
+        playback
+      );
+    } catch { /* Optional Android host bridge. */ }
+  }
+  function pushAndroidCover(img) {
+    if (!window.DormCastAndroid?.onCoverUpdate) return;
+    if (!img || !img.naturalWidth) {
+      try { window.DormCastAndroid.onCoverUpdate(''); } catch {}
+      return;
+    }
+    try {
+      const size = 256;
+      const canvas = document.createElement('canvas');
+      canvas.width = size; canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      ctx.drawImage(img, 0, 0, size, size);
+      window.DormCastAndroid.onCoverUpdate(canvas.toDataURL('image/jpeg', 0.82));
+    } catch { /* Ignore cover bridge failure. */ }
+  }
   function metadata() {
+    notifyAndroidMedia();
     if (!('mediaSession' in navigator) || !window.MediaMetadata) return;
     try {
-      navigator.mediaSession.metadata = new MediaMetadata({ title: info.Title || station, artist: info.Artist || '局域网实时广播', album: info.Album || '', artwork: artworkUrl ? [{ src: artworkUrl }] : [] });
+      const artwork = artworkUrl
+        ? [{ src: artworkUrl }]
+        : [{ src: fallbackIcon(), sizes: '512x512', type: 'image/png' }];
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: info.Title || station,
+        artist: info.Artist || '局域网实时广播',
+        album: info.Album || '',
+        artwork
+      });
       navigator.mediaSession.playbackState = playback;
     } catch { /* Media controls are optional in embedded browsers. */ }
   }
@@ -15,7 +53,10 @@
     el('record').classList.remove('has-cover');
     if (artworkUrl) URL.revokeObjectURL(artworkUrl);
     artworkUrl = null;
-    if (resetTheme) theme()?.reset();
+    if (resetTheme) {
+      theme()?.reset();
+      pushAndroidCover(null);
+    }
   }
   async function update(next, token, name) {
     info = next || {}; station = name || station;
@@ -53,12 +94,17 @@
       try { navigator.mediaSession.setActionHandler(action, null); } catch {}
     }
   }
-  function state(value) { playback = value; if ('mediaSession' in navigator) { try { navigator.mediaSession.playbackState = value; } catch {} } }
+  function state(value) {
+    playback = value;
+    notifyAndroidMedia();
+    if ('mediaSession' in navigator) { try { navigator.mediaSession.playbackState = value; } catch {} }
+  }
   function reset() { request++; revision = null; info = {}; clearCover(true); state('none'); metadata(); }
   const artwork = el('artwork');
   artwork.addEventListener('load', () => {
     if (!artworkUrl || artwork.hidden || !artwork.naturalWidth) return;
     theme()?.applyFromImage(artwork);
+    pushAndroidCover(artwork);
   });
   artwork.addEventListener('error', () => {
     if (!artworkUrl) return;
