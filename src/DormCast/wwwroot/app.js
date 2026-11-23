@@ -70,7 +70,7 @@
       ramp = { from: current, to: plan.seconds, at: audioContext.currentTime, duration: plan.duration }; plannedDelay = plan.seconds;
     }
     const instantaneousError = corrected + addedDelaySeconds() * 1000 - playoutTargetMs;
-    displayError = displayError === null ? instantaneousError : displayError + (instantaneousError - displayError) * 0.05;
+    displayError = displayError === null ? instantaneousError : displayError + (instantaneousError - displayError) * 0.12;
     const error = displayError;
     el('syncStatus').textContent = document.hidden && serverCompensation ? '后台由主机持续补偿；实际播放测量需恢复前台确认。' : fallbackTiming ? '兼容播放：浏览器缺少源时间戳，缓冲估计无法保证同步。' : `${Math.abs(error) > 15 ? '正在平滑对齐' : '已按源时间线补偿'} · 平滑估计偏差 ${error > 0 ? '+' : ''}${Math.round(error)}ms`;
     const direction = syncDirection === 'decreasing' ? `正在下调至 ${Math.round(desiredTargetMs)}ms。` : syncDirection === 'settling' ? `观察稳定后下调至 ${Math.round(desiredTargetMs)}ms。` : '';

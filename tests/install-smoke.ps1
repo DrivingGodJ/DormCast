@@ -1,5 +1,6 @@
-param([string]$Version = '0.6.1')
+param([string]$Version = '0.7.0')
 $ErrorActionPreference = 'Stop'
+Add-Type -AssemblyName System.Net.Http
 $workspace = (Resolve-Path -LiteralPath '.').Path
 $installPath = [IO.Path]::GetFullPath((Join-Path $workspace '.research/installer-smoke'))
 if (-not $installPath.StartsWith((Join-Path $workspace '.research') + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) { throw 'Install test path escaped workspace' }

@@ -23,12 +23,35 @@ public static class AudioDevices
         try { using var e = new MMDeviceEnumerator(); using var device = e.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia); return device.ID; }
         catch { return null; }
     }
+    public static AudioDeviceChoice? FindVirtualCaptureDevice(IEnumerable<AudioDeviceChoice>? devices = null)
+    {
+        var list = devices?.ToList() ?? RenderDevices();
+        return list.FirstOrDefault(d => d.Name.Contains("CABLE Input", StringComparison.OrdinalIgnoreCase))
+            ?? list.FirstOrDefault(d => d.IsVirtual);
+    }
+    public static List<AudioDeviceChoice> PhysicalOutputDevices(IEnumerable<AudioDeviceChoice>? devices = null) =>
+        (devices ?? RenderDevices()).Where(d => !d.IsVirtual).ToList();
+    public static AudioDeviceChoice? ResolvePhysicalOutput(string? preferredId, IEnumerable<AudioDeviceChoice>? devices = null, string? defaultId = null)
+    {
+        var physical = PhysicalOutputDevices(devices);
+        if (!string.IsNullOrWhiteSpace(preferredId))
+        {
+            var exact = physical.FirstOrDefault(d => d.Id == preferredId);
+            if (exact != null) return exact;
+        }
+        var activeDefault = defaultId ?? DefaultRenderId();
+        return physical.FirstOrDefault(d => d.Id == activeDefault)
+            ?? physical.FirstOrDefault(d => d.Name.Contains("Realtek", StringComparison.OrdinalIgnoreCase))
+            ?? physical.FirstOrDefault();
+    }
     public static void ValidateRoute(string? captureId, string? outputId)
     {
-        if (string.IsNullOrWhiteSpace(captureId) || string.IsNullOrWhiteSpace(outputId)) throw new ArgumentException("主机同步播放需要选择虚拟采集设备和实际扬声器。");
+        if (string.IsNullOrWhiteSpace(captureId)) throw new ArgumentException("未检测到虚拟声卡（VB-CABLE），无法启动广播。请先安装虚拟声卡后再重试。");
+        if (string.IsNullOrWhiteSpace(outputId)) throw new ArgumentException("请选择本机实际输出设备（扬声器或耳机）。");
         if (captureId == outputId) throw new ArgumentException("采集设备与主机扬声器必须不同，避免声音被重复采集形成回授。");
         var devices = RenderDevices();
-        if (!devices.Any(d => d.Id == captureId) || !devices.Any(d => d.Id == outputId)) throw new ArgumentException("所选音频设备已不可用，请刷新设备列表。");
-        if (!devices.First(d => d.Id == captureId).IsVirtual || devices.First(d => d.Id == outputId).IsVirtual) throw new ArgumentException("主机同步播放需要虚拟声卡采集、实际扬声器输出，请重新选择设备。");
+        if (!devices.Any(d => d.Id == captureId)) throw new ArgumentException("虚拟声卡不可用，请确认已正确安装 VB-CABLE 后重试。");
+        if (!devices.Any(d => d.Id == outputId)) throw new ArgumentException("所选输出设备已不可用，请刷新设备列表。");
+        if (!devices.First(d => d.Id == captureId).IsVirtual || devices.First(d => d.Id == outputId).IsVirtual) throw new ArgumentException("必须使用虚拟声卡采集并选择实际扬声器/耳机输出。");
     }
 }

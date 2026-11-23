@@ -3,6 +3,7 @@ namespace DormCast.Synchronization;
 // Deliberate sender hold is independent of browser timers; transport backlog is still bounded.
 public sealed class HostCompensation
 {
+    public const double MaxRatePerMs = 0.05;
     readonly object _gate = new();
     double _desired, _applied, _last;
     bool _initialized;
@@ -13,7 +14,7 @@ public sealed class HostCompensation
     {
         lock (_gate)
         {
-            var allowance = Math.Clamp(nowMs - _last, 0, 250) * 0.02;
+            var allowance = Math.Clamp(nowMs - _last, 0, 250) * MaxRatePerMs;
             _applied += Math.Clamp(_desired - _applied, -allowance, allowance); _last = nowMs; return _applied;
         }
     }

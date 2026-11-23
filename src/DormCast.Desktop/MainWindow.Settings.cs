@@ -1,7 +1,6 @@
 using DormCast.Audio;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using System.Diagnostics;
 
 namespace DormCast.Desktop;
 
@@ -13,15 +12,64 @@ public sealed partial class MainWindow
         _dialogOpen = true;
         try
         {
-            _settings.IsEnabled = false; var devices = await Task.Run(AudioDevices.RenderDevices);
-            var sync = new CheckBox { Content = "按最慢设备统一同步", IsChecked = _options.SyncEnabled }; var host = new CheckBox { Content = "主机也延迟播放（需要虚拟声卡）", IsChecked = _options.HostPlayback }; var remote = new CheckBox { Content = "允许浏览器控制主机播放与音量", IsChecked = _options.RemoteControlEnabled };
-            var capture = new ComboBox { Header = "采集设备（虚拟声卡）", ItemsSource = devices, HorizontalAlignment = HorizontalAlignment.Stretch }; var output = new ComboBox { Header = "主机实际扬声器", ItemsSource = devices.Where(d => !d.IsVirtual).ToList(), HorizontalAlignment = HorizontalAlignment.Stretch };
-            capture.SelectedItem = devices.FirstOrDefault(d => d.Id == _options.CaptureDeviceId) ?? devices.FirstOrDefault(d => d.IsVirtual); output.SelectedItem = devices.FirstOrDefault(d => d.Id == _options.OutputDeviceId && !d.IsVirtual) ?? devices.FirstOrDefault(d => !d.IsVirtual);
-            var correction = new NumberBox { Header = "主机额外硬件延迟（ms）", Minimum = 0, Maximum = 1000, Value = _options.HostHardwareCorrectionMs }; var error = Label("广播时切换默认输出，停止后恢复；采集与实际扬声器必须不同。", 13);
-            var driver = ActionButton("打开附带的官方驱动原包"); driver.Click += (_, _) => { var folder = Path.Combine(AppContext.BaseDirectory, "Drivers"); if (Directory.Exists(folder)) Process.Start(new ProcessStartInfo(folder) { UseShellExecute = true }); else error.Text = "请使用正式安装包，Drivers 文件夹内附有官方原包和首次安装说明。"; };
-            var dialog = new ContentDialog { XamlRoot = _root.XamlRoot, RequestedTheme = _root.ActualTheme, Title = "同步与主机播放", Content = Stack(sync, host, remote, capture, output, correction, error, driver), PrimaryButtonText = "保存", CloseButtonText = "取消", DefaultButton = ContentDialogButton.Primary };
-            dialog.PrimaryButtonClick += (_, e) => { try { var updated = _options with { SyncEnabled = sync.IsChecked == true || host.IsChecked == true, HostPlayback = host.IsChecked == true, RemoteControlEnabled = remote.IsChecked == true, CaptureDeviceId = (capture.SelectedItem as AudioDeviceChoice)?.Id, OutputDeviceId = (output.SelectedItem as AudioDeviceChoice)?.Id, HostHardwareCorrectionMs = (int)correction.Value }; updated.Validate(); _options = updated; _volume.Configure(updated.OutputDeviceId); } catch (Exception ex) { e.Cancel = true; error.Text = ex.Message; } };
-            if (await dialog.ShowAsync() == ContentDialogResult.Primary) { await Task.Run(_options.Save); _detail.Text = "同步设置已保存。"; }
+            _settings.IsEnabled = false;
+            var devices = await Task.Run(AudioDevices.RenderDevices);
+            var virtualCable = AudioDevices.FindVirtualCaptureDevice(devices);
+            var physicalOutputs = AudioDevices.PhysicalOutputDevices(devices);
+            var virtualInfo = Label(virtualCable != null
+                ? $"虚拟声卡（由软件自动选择）：{virtualCable.Name}"
+                : "虚拟声卡（由软件自动选择）：未检测到 VB-CABLE，无法启动广播。", 13);
+            var remote = new CheckBox { Content = "允许浏览器控制主机播放与音量", IsChecked = _options.RemoteControlEnabled };
+            var output = new ComboBox { Header = "输出设备（本机实际扬声器 / 耳机）", ItemsSource = physicalOutputs, HorizontalAlignment = HorizontalAlignment.Stretch };
+            output.SelectedItem = AudioDevices.ResolvePhysicalOutput((_output.SelectedItem as AudioDeviceChoice)?.Id ?? _options.OutputDeviceId, devices);
+            var correction = new NumberBox { Header = "主机额外硬件延迟（ms）", Minimum = 0, Maximum = 1000, Value = _options.HostHardwareCorrectionMs };
+            var error = Label("广播时自动使用虚拟声卡采集并延迟输出到所选设备，停止后恢复默认输出。", 13);
+            var driver = ActionButton(virtualCable == null ? "立即安装虚拟声卡" : "打开虚拟声卡安装包");
+            driver.Click += (_, _) =>
+            {
+                if (!TryLaunchBundledVirtualCableInstaller(out var err)) error.Text = err;
+                else error.Text = "已启动 VB-CABLE 官方安装程序，完成后请重启电脑或点击刷新。";
+            };
+            var dialog = new ContentDialog
+            {
+                XamlRoot = _root.XamlRoot,
+                RequestedTheme = _root.ActualTheme,
+                Title = "同步与输出设置",
+                Content = Stack(virtualInfo, output, remote, correction, error, driver),
+                PrimaryButtonText = "保存",
+                CloseButtonText = "取消",
+                DefaultButton = ContentDialogButton.Primary
+            };
+            dialog.PrimaryButtonClick += (_, e) =>
+            {
+                try
+                {
+                    if (output.SelectedItem is not AudioDeviceChoice chosen || chosen.IsVirtual)
+                        throw new ArgumentException("请选择一个本机实际扬声器或耳机作为输出设备。");
+                    if (virtualCable == null)
+                        throw new ArgumentException("未检测到虚拟声卡（VB-CABLE），请先安装虚拟声卡后再保存。");
+                    var updated = _options with
+                    {
+                        SyncEnabled = true,
+                        HostPlayback = true,
+                        RemoteControlEnabled = remote.IsChecked == true,
+                        CaptureDeviceId = virtualCable.Id,
+                        OutputDeviceId = chosen.Id,
+                        HostHardwareCorrectionMs = (int)correction.Value
+                    };
+                    updated.Validate();
+                    _options = updated;
+                    _virtualCable = virtualCable;
+                    _volume.Configure(updated.OutputDeviceId);
+                }
+                catch (Exception ex) { e.Cancel = true; error.Text = ex.Message; }
+            };
+            if (await dialog.ShowAsync() == ContentDialogResult.Primary)
+            {
+                await Task.Run(_options.Save);
+                await RefreshNetworkAsync();
+                _detail.Text = "同步与输出设置已保存。";
+            }
         }
         catch (Exception ex) { _detail.Text = ex.Message; }
         finally { _dialogOpen = false; _settings.IsEnabled = true; }

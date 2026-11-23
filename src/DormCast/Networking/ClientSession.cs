@@ -115,7 +115,12 @@ public sealed class ClientSession(WebSocket socket, BroadcastServer server, IPAd
                             var uncertainty = report.TryGetProperty("uncertaintyMs", out var u) && u.ValueKind == JsonValueKind.Number ? u.GetDouble() : double.NaN;
                             // Source-clock latency already contains our sender hold. Remove it before choosing the slowest base path.
                             var baseline = natural - (_peer?.SendDelayMs ?? 0);
-                            if (server.Synchronization.Report(Id, $"{Name} · {Id[..4]}", Math.Max(0, baseline), uncertainty, playing && !LocalPreview, server.NowMs)) { _baseLatency = server.Synchronization.Baseline(Id); _measuredAt = server.NowMs; }
+                            if (server.Synchronization.Report(Id, $"{Name} · {Id[..4]}", Math.Max(0, baseline), uncertainty, playing && !LocalPreview, server.NowMs))
+                            {
+                                _baseLatency = server.Synchronization.Baseline(Id); _measuredAt = server.NowMs;
+                                if (server.Synchronization.Samples(Id) >= 3 && _baseLatency is { } stableBase)
+                                    _peer?.SetCompensation(server.Synchronization.GetState(server.NowMs).PlayoutTargetMs - stableBase);
+                            }
                             server.Synchronization.SetBackground(Id, _background);
                         }
                         break;

@@ -23,12 +23,12 @@ public sealed partial class MainWindow : Window
     readonly DispatcherQueueTimer _timer;
     readonly NativeTray _tray;
     BroadcastOptions _options = BroadcastOptions.Load();
-    readonly bool _firstRun = !BroadcastOptions.HasSavedSettings;
     readonly CancellationTokenSource _exitCancel = new();
     readonly nint _window;
-    bool _busy, _exiting, _presenting, _ticking, _dialogOpen;
+    bool _busy, _exiting, _presenting, _ticking, _dialogOpen, _updatingOutputs;
     long _lastInput;
     string? _coverRevision;
+    AudioDeviceChoice? _virtualCable;
     static readonly Version CurrentVersion = NormalizeVersion(typeof(MainWindow).Assembly.GetName().Version);
     static Version NormalizeVersion(Version? v) => v == null ? BroadcastHost.AppVersion : new Version(v.Major, v.Minor, Math.Max(0, v.Build));
     public MainWindow()
@@ -50,6 +50,8 @@ public sealed partial class MainWindow : Window
         _copy.Click += (_, _) => Copy(DisplayedJoinUrl);
         _joinMode.SelectionChanged += async (_, e) => { if (e.AddedItems.Count > 0) await SwitchJoinModeAsync(Equals(e.AddedItems[0], _joinMode.Items[1])); };
         _refresh.Click += async (_, _) => await RefreshNetworkAsync(); _settings.Click += async (_, _) => await SettingsAsync(); _update.Click += async (_, _) => await CheckUpdateAsync();
+        _driverHelp.Click += async (_, _) => await DriverGuideAsync();
+        _output.SelectionChanged += (_, _) => OnOutputSelectionChanged();
         _slider.ValueChanged += (_, _) => { if (_presenting || !_slider.IsEnabled) return; _lastInput = Stopwatch.GetTimestamp(); _percent.Text = $"{_slider.Value:0}%"; _volume.RequestLevel((float)_slider.Value / 100); };
         _timer = DispatcherQueue.CreateTimer(); _timer.Interval = TimeSpan.FromMilliseconds(500); _timer.Tick += async (_, _) => await TickAsync(); _timer.Start();
         _copy.IsEnabled = false; _ = InitializeAsync();
@@ -58,41 +60,150 @@ public sealed partial class MainWindow : Window
     {
         try
         {
-            var defaults = await Task.Run(() =>
-            {
-                DefaultAudioRoute.RecoverIfNeeded(); var devices = AudioDevices.RenderDevices();
-                var source = devices.FirstOrDefault(d => d.IsVirtual); var defaultId = AudioDevices.DefaultRenderId();
-                var output = devices.FirstOrDefault(d => !d.IsVirtual && d.Id == defaultId) ?? devices.FirstOrDefault(d => !d.IsVirtual && d.Name.Contains("Realtek", StringComparison.OrdinalIgnoreCase)) ?? devices.FirstOrDefault(d => !d.IsVirtual);
-                return new { source, output };
-            });
-            if (_firstRun && defaults.source != null && defaults.output != null) { _options = _options with { HostPlayback = true, CaptureDeviceId = defaults.source.Id, OutputDeviceId = defaults.output.Id }; _volume.Configure(defaults.output.Id); await Task.Run(_options.Save); }
-            if (defaults.source == null) { _detail.Text = "主机同步播放需要虚拟声卡，请先完成驱动安装。"; await DriverGuideAsync(); }
+            await Task.Run(DefaultAudioRoute.RecoverIfNeeded);
             await RefreshNetworkAsync();
+            if (_virtualCable == null) await DriverGuideAsync();
             _ = CheckUpdateOnStartupAsync();
         }
         catch (Exception ex) { _detail.Text = ex.Message; AppLog.Write("Desktop initialization", ex); }
     }
+    void OnOutputSelectionChanged()
+    {
+        if (_updatingOutputs || _host.Running || _output.SelectedItem is not AudioDeviceChoice chosen || chosen.IsVirtual) return;
+        _volume.Configure(chosen.Id);
+        _options = _options with { OutputDeviceId = chosen.Id };
+        if (_virtualCable != null)
+        {
+            var updated = _options with { SyncEnabled = true, HostPlayback = true, CaptureDeviceId = _virtualCable.Id, OutputDeviceId = chosen.Id };
+            _options = updated;
+            _ = Task.Run(() => { try { updated.Save(); } catch (Exception ex) { AppLog.Write("Save output device", ex); } });
+        }
+        UpdateStartAvailability();
+    }
+    void UpdateStartAvailability()
+    {
+        var hasNic = _nic.SelectedItem is LanInterface;
+        var hasOutput = _output.SelectedItem is AudioDeviceChoice d && !d.IsVirtual;
+        var hasVirtual = _virtualCable != null;
+        _driverHelp.Visibility = hasVirtual ? Visibility.Collapsed : Visibility.Visible;
+        if (_busy)
+        {
+            _start.IsEnabled = false;
+            _start.Content = "正在处理…";
+            return;
+        }
+        if (_host.Running)
+        {
+            _start.IsEnabled = true;
+            _start.Content = "停止广播";
+            return;
+        }
+        if (!hasVirtual)
+        {
+            _start.IsEnabled = false;
+            _start.Content = "未安装虚拟声卡，无法广播";
+            return;
+        }
+        _start.Content = "开始广播";
+        _start.IsEnabled = hasNic && hasOutput;
+    }
     async Task RefreshNetworkAsync()
     {
         if (_host.Running || _busy) return; _refresh.IsEnabled = false;
-        try { var selected = (_nic.SelectedItem as LanInterface)?.Address; var choices = await Task.Run(LanInterface.Discover); _nic.ItemsSource = choices; _nic.SelectedItem = choices.FirstOrDefault(n => n.Address.Equals(selected)) ?? choices.FirstOrDefault(); _network.Text = choices.Count == 0 ? "没有可用的私网 IPv4，请连接 Wi-Fi。" : $"{(_nic.SelectedItem as LanInterface)?.Address} · 仅局域网访问"; _start.IsEnabled = choices.Count > 0; }
+        try
+        {
+            var selectedNic = (_nic.SelectedItem as LanInterface)?.Address;
+            var preferredOutput = (_output.SelectedItem as AudioDeviceChoice)?.Id ?? _options.OutputDeviceId;
+            var snapshot = await Task.Run(() =>
+            {
+                var nics = LanInterface.Discover();
+                var devices = AudioDevices.RenderDevices();
+                var defaultId = AudioDevices.DefaultRenderId();
+                var virtualCable = AudioDevices.FindVirtualCaptureDevice(devices);
+                var physical = AudioDevices.PhysicalOutputDevices(devices);
+                var chosenOutput = AudioDevices.ResolvePhysicalOutput(preferredOutput, devices, defaultId);
+                return new { nics, virtualCable, physical, chosenOutput };
+            });
+
+            _nic.ItemsSource = snapshot.nics;
+            _nic.SelectedItem = snapshot.nics.FirstOrDefault(n => n.Address.Equals(selectedNic)) ?? snapshot.nics.FirstOrDefault();
+            _network.Text = snapshot.nics.Count == 0 ? "没有可用的私网 IPv4，请连接 Wi-Fi。" : $"{(_nic.SelectedItem as LanInterface)?.Address} · 仅局域网访问";
+
+            _virtualCable = snapshot.virtualCable;
+            _updatingOutputs = true;
+            try
+            {
+                _output.ItemsSource = snapshot.physical;
+                _output.SelectedItem = snapshot.chosenOutput;
+            }
+            finally { _updatingOutputs = false; }
+
+            _volume.Configure(snapshot.chosenOutput?.Id);
+            if (_virtualCable != null)
+            {
+                _virtualStatus.Text = $"虚拟声卡（自动选择）：{_virtualCable.Name}";
+                var nextOptions = _options with { SyncEnabled = true, HostPlayback = true, CaptureDeviceId = _virtualCable.Id, OutputDeviceId = snapshot.chosenOutput?.Id };
+                _options = nextOptions;
+                if (snapshot.chosenOutput != null)
+                    await Task.Run(() => { try { nextOptions.Save(); } catch (Exception ex) { AppLog.Write("Save auto audio route", ex); } });
+                else
+                    _detail.Text = "未检测到可用的实际扬声器或耳机，请连接输出设备后刷新。";
+            }
+            else
+            {
+                _virtualStatus.Text = "未检测到虚拟声卡（VB-CABLE），无法启动广播";
+                _detail.Text = "未检测到虚拟声卡（VB-CABLE），无法启动广播。请点击「查看虚拟声卡安装指引」完成安装。";
+            }
+            UpdateStartAvailability();
+        }
         finally { _refresh.IsEnabled = true; }
     }
     void SetBusy(bool value)
     {
-        _busy = value; foreach (var control in new Control[] { _name, _nic, _frame, _port, _settings, _refresh }) control.IsEnabled = !value && !_host.Running;
-        _start.IsEnabled = !value; _start.Content = value ? "正在处理…" : _host.Running ? "停止广播" : "开始广播";
+        _busy = value; foreach (var control in new Control[] { _name, _nic, _frame, _port, _output, _settings, _refresh }) control.IsEnabled = !value && !_host.Running;
         _joinMode.IsEnabled = _copy.IsEnabled = !value && _host.Running;
+        UpdateStartAvailability();
     }
     async Task StartAsync()
     {
-        if (_busy || _nic.SelectedItem is not LanInterface nic) return; SetBusy(true);
+        if (_busy || _nic.SelectedItem is not LanInterface nic) return;
+        var audioCheck = await Task.Run(() =>
+        {
+            var devices = AudioDevices.RenderDevices();
+            return new { virtualCable = AudioDevices.FindVirtualCaptureDevice(devices), devices };
+        });
+        _virtualCable = audioCheck.virtualCable;
+        if (_virtualCable == null)
+        {
+            _virtualStatus.Text = "未检测到虚拟声卡（VB-CABLE），无法启动广播";
+            _detail.Text = "未检测到虚拟声卡（VB-CABLE），无法启动广播。请按指引安装虚拟声卡。";
+            UpdateStartAvailability();
+            await DriverGuideAsync();
+            return;
+        }
+        if (_output.SelectedItem is not AudioDeviceChoice chosenOutput || chosenOutput.IsVirtual)
+        {
+            _detail.Text = "请先选择一个本机实际输出设备（扬声器或耳机）。";
+            UpdateStartAvailability();
+            return;
+        }
+        SetBusy(true);
         try
         {
-            var options = _options with { Name = _name.Text.Trim(), Port = (int)_port.Value, FrameMs = _frame.SelectedIndex == 1 ? 10 : 20 }; options.Validate();
+            var options = _options with
+            {
+                Name = _name.Text.Trim(),
+                Port = (int)_port.Value,
+                FrameMs = _frame.SelectedIndex == 1 ? 10 : 20,
+                SyncEnabled = true,
+                HostPlayback = true,
+                CaptureDeviceId = _virtualCable.Id,
+                OutputDeviceId = chosenOutput.Id
+            };
+            options.Validate();
             await Task.Run(async () => { options.Save(); await _host.StartAsync(options, nic); }); _options = options;
             _useIpv4Join = false; _joinMode.SelectedIndex = 0; await RefreshJoinAsync();
-            _tray.SetBroadcasting(true); _state.Text = "● 正在广播"; _detail.Text = "mDNS 与 IPv4 始终同时可用。关闭窗口会隐藏到托盘。";
+            _tray.SetBroadcasting(true); _state.Text = "● 正在广播"; _detail.Text = "已自动启用虚拟声卡同步广播；mDNS 与 IPv4 始终同时可用。关闭窗口会隐藏到托盘。";
         }
         catch (Exception ex) { _detail.Text = $"无法开始广播：{ex.Message}"; AppLog.Write("Start failed", ex); }
         finally { SetBusy(false); }

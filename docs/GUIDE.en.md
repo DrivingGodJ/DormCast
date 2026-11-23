@@ -4,7 +4,7 @@
 
 ## Installation
 
-Requires Windows 10 22H2 or Windows 11 x64. Install `DormCast-0.6.1-Setup-x64.exe` from Releases for the current user. The package includes .NET, WinUI and the native runtime files. The portable ZIP also works when fully extracted; copying only the EXE does not. The installer is not code-signed.
+Requires Windows 10 22H2 or Windows 11 x64. Install `DormCast-0.7.0-Setup-x64.exe` from Releases for the current user. The installer automatically checks for VB-CABLE: if missing, it requires installing the virtual audio driver (with UAC elevation); if already installed, it skips driver setup automatically. Uninstalling DormCast also uninstalls VB-CABLE alongside the app. Inside DormCast, you only select your physical output device (speakers/headphones) while the virtual cable is auto-selected; if no virtual cable is detected, broadcasting is blocked with an installation guide. The portable ZIP also works when fully extracted; copying only the EXE does not. The installer is not code-signed.
 
 Synchronized host playback requires a virtual cable to separate the original signal from the delayed physical output. The installer has a dedicated preparation page and can open the `Drivers` folder when finished. The app also explains these steps when no virtual endpoint is detected:
 

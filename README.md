@@ -93,12 +93,12 @@
 
 ## 三步开始广播
 
-1. **安装最新版 Release**
-   前往 [Releases](https://github.com/DrivingGodJ/DormCast/releases/latest) 下载 `DormCast-x.y.z-Setup-x64.exe`（支持 **Windows 10 22H2 / Windows 11 x64**，已内置 .NET 与 WinUI 运行时，无需额外安装）。
-2. **首次安装附带的官方 VB-CABLE 虚拟声卡**
-   按首次安装向导解压附带的官方原包 `VBCABLE_Driver_Pack46.zip`，右键以管理员身份运行安装驱动并按提示重启（用于隔离原始音频与延迟后的主机扬声器声音；已安装过可跳过）。
+1. **安装最新版 Release（自动部署虚拟声卡）**
+   前往 [Releases](https://github.com/DrivingGodJ/DormCast/releases/latest) 下载 `DormCast-x.y.z-Setup-x64.exe`（支持 **Windows 10 22H2 / Windows 11 x64**，已内置 .NET 与 WinUI 运行时）。安装过程会检测是否已安装 **VB-CABLE 虚拟声卡**：未安装时强制要求安装，已安装则自动跳过；卸载软件时虚拟声卡也会随本体一并卸载。
+2. **选择本机输出设备（虚拟声卡自动选择）**
+   打开宿舍之音，只需选择本机实际扬声器或耳机作为输出设备，虚拟声卡由软件自动选择；若检测到尚未安装虚拟声卡，广播按钮会锁定并弹出安装指引。
 3. **点击「开始广播」，室友扫码即听**
-   打开宿舍之音，确认虚拟采集设备与实际扬声器，点击 **「开始广播」**。其他设备连接同一 Wi-Fi 后扫码或访问链接，必要时点击一次「开始收听」即可同频播放。
+   点击 **「开始广播」**。其他设备连接同一 Wi-Fi 后扫码或访问链接，必要时点击一次「开始收听」即可同频播放。
 
 <details>
 <summary><strong>📌 固定链接持久身份与局域网安全边界说明</strong></summary>

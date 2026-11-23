@@ -96,22 +96,79 @@ public sealed partial class MainWindow
         finally { _dialogOpen = false; }
     }
 
+    static bool TryLaunchBundledVirtualCableInstaller(out string error)
+    {
+        error = "";
+        var folder = Path.Combine(AppContext.BaseDirectory, "Drivers");
+        var zip = Path.Combine(folder, "VBCABLE_Driver_Pack46.zip");
+        if (!File.Exists(zip))
+        {
+            if (Directory.Exists(folder))
+            {
+                Process.Start(new ProcessStartInfo(folder) { UseShellExecute = true });
+                error = "未找到内置驱动压缩包，已打开 Drivers 目录；也可前往 https://vb-audio.com/Cable/ 下载安装。";
+                return false;
+            }
+            error = "未找到内置虚拟声卡安装包，请重新运行 DormCast 安装程序，或前往 https://vb-audio.com/Cable/ 下载安装 VB-CABLE。";
+            return false;
+        }
+        try
+        {
+            var tempDir = Path.Combine(Path.GetTempPath(), "DormCast-VBCABLE");
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+            System.IO.Compression.ZipFile.ExtractToDirectory(zip, tempDir, true);
+            var setup = Path.Combine(tempDir, "VBCABLE_Setup_x64.exe");
+            if (!File.Exists(setup)) { error = "驱动压缩包中缺少 VBCABLE_Setup_x64.exe。"; return false; }
+            Process.Start(new ProcessStartInfo(setup) { UseShellExecute = true, Verb = "runas", WorkingDirectory = tempDir });
+            return true;
+        }
+        catch (Exception ex)
+        {
+            error = $"无法启动虚拟声卡安装程序：{ex.Message}";
+            return false;
+        }
+    }
+
     async Task DriverGuideAsync()
     {
         if (_exiting || _dialogOpen || _root.XamlRoot == null) return;
         _dialogOpen = true;
+        ContentDialogResult answer;
         try
         {
-            var guide = new ContentDialog { XamlRoot = _root.XamlRoot, RequestedTheme = _root.ActualTheme, Title = "首次使用：安装虚拟声卡", Content = Label("1. 打开附带的驱动文件夹，解压 VBCABLE_Driver_Pack46.zip。\n\n2. 右键 VBCABLE_Setup_x64.exe，以管理员身份运行，点击 Install Driver。\n\n3. 按官方提示重启电脑，再打开宿舍之音。软件会选择 CABLE Input 采集、实际扬声器播放。\n\n官方驱动原包保持完整，需要你手动安装一次。", 15), PrimaryButtonText = "打开驱动文件夹", SecondaryButtonText = "重新检测", CloseButtonText = "稍后" };
-            var answer = await guide.ShowAsync();
-            if (answer == ContentDialogResult.Primary) Process.Start(new ProcessStartInfo(Path.Combine(AppContext.BaseDirectory, "Drivers")) { UseShellExecute = true });
-            if (answer == ContentDialogResult.Secondary)
+            var guide = new ContentDialog
             {
-                var devices = await Task.Run(AudioDevices.RenderDevices); var source = devices.FirstOrDefault(d => d.IsVirtual); var output = devices.FirstOrDefault(d => !d.IsVirtual && d.Name.Contains("Realtek", StringComparison.OrdinalIgnoreCase)) ?? devices.FirstOrDefault(d => !d.IsVirtual);
-                if (source != null && output != null) { _options = _options with { HostPlayback = true, CaptureDeviceId = source.Id, OutputDeviceId = output.Id }; _volume.Configure(output.Id); await Task.Run(_options.Save); _detail.Text = "驱动已识别，可以开始广播。"; }
-                else _detail.Text = "尚未识别到虚拟声卡，请安装驱动并重启后重试。";
-            }
+                XamlRoot = _root.XamlRoot,
+                RequestedTheme = _root.ActualTheme,
+                Title = "未检测到虚拟声卡，无法启动广播",
+                Content = Label(
+                    "宿舍之音需要虚拟声卡（VB-CABLE）由软件自动采集声音并同步到所有设备。当前未检测到虚拟声卡，广播按钮已锁定。\n\n" +
+                    "请按以下任一方式完成安装：\n" +
+                    "1. 点击下方「立即安装虚拟声卡」，在管理员授权后点击 Install Driver 完成安装；\n" +
+                    "2. 或重新运行 DormCast 安装程序（会自动引导安装虚拟声卡）；\n" +
+                    "3. 安装完成后按提示重启电脑，再打开软件或点击「重新检测」。\n\n" +
+                    "若软件目录内不含驱动包，也可前往 https://vb-audio.com/Cable/ 下载官方 VB-CABLE。", 14),
+                PrimaryButtonText = "立即安装虚拟声卡",
+                SecondaryButtonText = "重新检测",
+                CloseButtonText = "关闭",
+                DefaultButton = ContentDialogButton.Primary
+            };
+            answer = await guide.ShowAsync();
         }
         finally { _dialogOpen = false; }
+
+        if (answer == ContentDialogResult.Primary)
+        {
+            if (TryLaunchBundledVirtualCableInstaller(out var err))
+                _detail.Text = "已启动 VB-CABLE 安装程序，安装完成后请按提示重启或点击「刷新网卡与设备」。";
+            else
+                _detail.Text = err;
+        }
+        else if (answer == ContentDialogResult.Secondary)
+        {
+            await RefreshNetworkAsync();
+            if (_virtualCable != null) _detail.Text = $"已检测到虚拟声卡（{_virtualCable.Name}），现在可以开始广播。";
+            else _detail.Text = "仍未检测到虚拟声卡，请确认已完成安装并重启电脑。";
+        }
     }
 }

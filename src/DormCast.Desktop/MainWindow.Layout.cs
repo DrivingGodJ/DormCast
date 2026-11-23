@@ -9,17 +9,17 @@ namespace DormCast.Desktop;
 public sealed partial class MainWindow
 {
     readonly Grid _root = new() { Padding = new Thickness(28, 4, 28, 20), RowSpacing = 16, RequestedTheme = ElementTheme.Default };
-    readonly TextBlock _state = Label("未广播", 14), _detail = Label("连接同一个 Wi-Fi，把此刻的音乐分享出去。", 14), _song = Label("你的音乐，正在这里。", 30), _artist = Label("等待播放器提供歌曲信息", 18), _album = Label("", 14), _capture = Label("开启广播后采集系统声音", 13), _network = Label("检查局域网…", 13), _listeners = Label("0 台设备", 22), _sync = Label("等待设备测量", 22), _speaker = Label("正在连接实际扬声器", 13), _percent = Label("—", 16);
+    readonly TextBlock _state = Label("未广播", 14), _detail = Label("连接同一个 Wi-Fi，把此刻的音乐分享出去。", 14), _song = Label("你的音乐，正在这里。", 30), _artist = Label("等待播放器提供歌曲信息", 18), _album = Label("", 14), _capture = Label("开启广播后自动通过虚拟声卡采集", 13), _network = Label("检查局域网…", 13), _listeners = Label("0 台设备", 22), _sync = Label("等待设备测量", 22), _speaker = Label("正在连接实际扬声器", 13), _percent = Label("—", 16), _virtualStatus = Label("正在检测虚拟声卡…", 13);
     readonly StackPanel _clientCards = new() { Spacing = 12 };
     readonly Image _cover = new() { Width = 190, Height = 190, Stretch = Stretch.UniformToFill }, _qr = new() { Width = 184, Height = 184, Stretch = Stretch.Uniform };
     readonly TextBlock _coverFallback = Label("◉", 66);
     readonly TextBox _name = new() { Header = "广播名称" }, _url = new() { IsReadOnly = true, TextWrapping = TextWrapping.Wrap, AcceptsReturn = true, MinHeight = 56, Text = "开始后显示可收藏的固定网址" };
-    readonly ComboBox _nic = new() { Header = "局域网卡", HorizontalAlignment = HorizontalAlignment.Stretch }, _frame = new() { Header = "音频帧", HorizontalAlignment = HorizontalAlignment.Stretch };
+    readonly ComboBox _nic = new() { Header = "局域网卡", HorizontalAlignment = HorizontalAlignment.Stretch }, _frame = new() { Header = "音频帧", HorizontalAlignment = HorizontalAlignment.Stretch }, _output = new() { Header = "输出设备（本机扬声器 / 耳机）", HorizontalAlignment = HorizontalAlignment.Stretch };
     readonly NumberBox _port = new() { Header = "端口", Minimum = 1024, Maximum = 65535, SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Compact };
     readonly Slider _slider = new() { Minimum = 0, Maximum = 100, StepFrequency = 1, IsEnabled = false };
     readonly RadioButtons _joinMode = new() { Header = "接入方式（同时可用）", MaxColumns = 2, Items = { "mDNS 固定", "IPv4 兼容" }, SelectedIndex = 0, IsEnabled = false };
     readonly TextBlock _joinHint = Label("默认显示可收藏的固定链接。手机打不开时可选 IPv4 兼容。", 12);
-    readonly Button _start = ActionButton("开始广播", true), _copy = ActionButton("复制当前链接"), _settings = ActionButton("同步设置"), _refresh = ActionButton("刷新网卡"), _update = ActionButton("检查更新");
+    readonly Button _start = ActionButton("开始广播", true), _copy = ActionButton("复制当前链接"), _settings = ActionButton("同步设置"), _refresh = ActionButton("刷新网卡与设备"), _update = ActionButton("检查更新"), _driverHelp = ActionButton("查看虚拟声卡安装指引");
     static SolidColorBrush Brush(byte r, byte g, byte b) => new(ColorHelper.FromArgb(255, r, g, b));
     static TextBlock Label(string text, double size) => new() { Text = text, FontSize = size, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
     static StackPanel Stack(params UIElement[] children) { var panel = new StackPanel { Spacing = 12 }; foreach (var child in children) panel.Children.Add(child); return panel; }
@@ -43,7 +43,9 @@ public sealed partial class MainWindow
         AutomationProperties.SetName(_joinMode, "链接与二维码的展示方式，两种接入方式始终同时有效");
         Cell(hero, Card(Stack(Label("扫码，一起听", 20), _joinMode, new Border { Child = _qr, Background = Brush(255, 255, 255), CornerRadius = new CornerRadius(8), Padding = new Thickness(8), HorizontalAlignment = HorizontalAlignment.Center }, _url, _copy, _joinHint)), 1); content.Children.Add(hero);
         var config = Columns(1.2, 1.5, 0.7, 1.05); Cell(config, _name, 0); Cell(config, _nic, 1); Cell(config, _port, 2); Cell(config, _frame, 3);
-        var startRow = Columns(1, 1); Cell(startRow, Stack(_network, _refresh), 0); _start.HorizontalAlignment = HorizontalAlignment.Stretch; _start.FontSize = 18; _start.MinHeight = 56; Cell(startRow, _start, 1); content.Children.Add(Card(Stack(config, startRow)));
+        _driverHelp.Visibility = Visibility.Collapsed;
+        var audioRow = Columns(1.35, 1); Cell(audioRow, _output, 0); var virtualPanel = Stack(_virtualStatus, _driverHelp); virtualPanel.VerticalAlignment = VerticalAlignment.Bottom; Cell(audioRow, virtualPanel, 1);
+        var startRow = Columns(1, 1); Cell(startRow, Stack(_network, _refresh), 0); _start.HorizontalAlignment = HorizontalAlignment.Stretch; _start.FontSize = 18; _start.MinHeight = 56; Cell(startRow, _start, 1); content.Children.Add(Card(Stack(config, audioRow, startRow)));
         var metrics = Columns(1, 1); Cell(metrics, Stack(Label("正在收听", 13), _listeners), 0); Cell(metrics, Stack(Label("统一延迟目标", 13), _sync), 1); content.Children.Add(Card(metrics));
         var diagnostics = ActionButton("导出诊断"); diagnostics.Click += async (_, _) => await SaveDiagnosticsAsync(); content.Children.Add(new Expander { Header = "设备与同步详情", HorizontalAlignment = HorizontalAlignment.Stretch, Content = Stack(_clientCards, Label("基础路径、播放时间线和偏差均为软件估计；浏览器输出值不一定包含后台媒体和蓝牙的额外缓冲。", 12), diagnostics) }); content.Children.Add(_update);
         var scroll = new ScrollViewer { Content = content, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled }; Grid.SetRow(scroll, 2); _root.Children.Add(scroll); Grid.SetRow(_detail, 3); _root.Children.Add(_detail);

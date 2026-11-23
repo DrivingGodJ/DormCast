@@ -33,8 +33,22 @@ static class FeatureChecks
         var background = new SyncCoordinator(); for (var t = 0; t <= 12000; t += 1000) { background.Report("p", "phone", 400, 1, true, t); background.SetBackground("p", true); background.GetState(t); }
         Check(background.GetState(60000).MeasuredDevices == 1 && background.GetState(60000).TargetMs == 500, "background timer suspension preserves a connected device's floor");
         var hold = new HostCompensation(); hold.SetDesired(160); Check(hold.AppliedMs == 160, "initial sender hold is seeded before the client becomes audible"); hold.SetDesired(20);
-        for (var t = 0; t <= 8000; t += 50) hold.Advance(t);
-        Check(Math.Abs(hold.AppliedMs - 20) < 0.1, "sender compensation decreases without browser timers");
+        for (var t = 0; t <= 1000; t += 50) hold.Advance(t);
+        Check(hold.AppliedMs is >= 105 and <= 115, $"per-device sender compensation converges faster (~50ms/s) while staying smooth (at 1s: {hold.AppliedMs:F1}ms)");
+        for (var t = 1050; t <= 3200; t += 50) hold.Advance(t);
+        Check(Math.Abs(hold.AppliedMs - 20) < 0.1, "sender compensation finishes converging without browser timers");
+        var sampleDevices = new[]
+        {
+            new AudioDeviceChoice("v1", "VoiceMeeter Input (VB-Audio VoiceMeeter VAIO)"),
+            new AudioDeviceChoice("v2", "CABLE Input (VB-Audio Virtual Cable)"),
+            new AudioDeviceChoice("p1", "扬声器 (Realtek(R) Audio)"),
+            new AudioDeviceChoice("p2", "耳机 (USB Audio)")
+        };
+        Check(AudioDevices.FindVirtualCaptureDevice(sampleDevices)?.Id == "v2", "auto virtual cable selection prefers CABLE Input");
+        Check(AudioDevices.FindVirtualCaptureDevice(sampleDevices.Where(d => !d.IsVirtual)) == null, "missing virtual cable is detected so broadcast can be blocked");
+        var physicalOnly = AudioDevices.PhysicalOutputDevices(sampleDevices);
+        Check(physicalOnly.Count == 2 && physicalOnly.All(d => !d.IsVirtual), "selectable outputs include only physical audio devices");
+        Check(AudioDevices.ResolvePhysicalOutput("p2", sampleDevices, "p1")?.Id == "p2" && AudioDevices.ResolvePhysicalOutput("v2", sampleDevices, "p1")?.Id == "p1", "physical output resolver ignores virtual devices and honors saved physical output");
         Check(BroadcastVolumeLink.NetworkGain(0.14f, false) == 0.14f && BroadcastVolumeLink.NetworkGain(0.5f, false) == 0.5f && BroadcastVolumeLink.NetworkGain(1, false) == 1, "network amplitude follows Windows percentage without importing the physical speaker's dB taper");
         Check(BroadcastVolumeLink.NetworkGain(0.7f, true) == 0 && BroadcastVolumeLink.NetworkGain(0, false) == 0 && BroadcastVolumeLink.NetworkGain(float.NaN, false) == 0 && BroadcastVolumeLink.NetworkGain(2, false) == 1, "network mute and gain bounds prevent unintended amplification");
         Directory.CreateDirectory("test-results/v0.5"); File.WriteAllText("test-results/v0.5/stable-delay.json", JsonSerializer.Serialize(trace));
@@ -47,7 +61,7 @@ static class FeatureChecks
         var update = GitHubReleaseClient.Parse(Encoding.UTF8.GetBytes(Release()), new Version(0, 4, 0))!;
         Check(update.Version == new Version(0, 5, 0) && GitHubReleaseClient.Parse(Encoding.UTF8.GetBytes(Release()), new Version(0, 5, 0)) == null, "release comparison handles newer and current versions numerically");
         var appVer = DormCast.Hosting.BroadcastHost.AppVersion;
-        Check(appVer.Revision == -1 && appVer >= new Version(0, 6, 1), $"assembly AppVersion is normalized 3-part version ({appVer})");
+        Check(appVer.Revision == -1 && appVer >= new Version(0, 7, 0), $"assembly AppVersion is normalized 3-part version ({appVer})");
         var selfRelease = JsonSerializer.Serialize(new { draft = false, prerelease = false, tag_name = $"v{appVer}", body = "Self", assets = new[] { new { name = $"DormCast-{appVer}-Setup-x64.exe", size = payload.Length, browser_download_url = $"https://github.com/DrivingGodJ/DormCast/releases/download/v{appVer}/DormCast-{appVer}-Setup-x64.exe", digest = "sha256:" + digest } } });
         Check(GitHubReleaseClient.Parse(Encoding.UTF8.GetBytes(selfRelease), appVer) == null, "current release does not prompt to update to itself");
         Check(GitHubReleaseClient.Parse(Encoding.UTF8.GetBytes(Release(prerelease: true)), new Version(0, 4, 0)) == null, "automatic updater ignores prereleases");

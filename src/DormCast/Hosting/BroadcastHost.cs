@@ -34,6 +34,16 @@ public sealed class BroadcastHost : IAsyncDisposable
         try
         {
             if (Running) return;
+            if (options.HostPlayback)
+            {
+                var devices = AudioDevices.RenderDevices();
+                var autoVirtual = AudioDevices.FindVirtualCaptureDevice(devices);
+                if (autoVirtual == null) throw new InvalidOperationException("未检测到虚拟声卡（VB-CABLE），无法启动广播。请先安装虚拟声卡后再重试。");
+                var captureId = !string.IsNullOrWhiteSpace(options.CaptureDeviceId) && devices.Any(d => d.Id == options.CaptureDeviceId && d.IsVirtual)
+                    ? options.CaptureDeviceId
+                    : autoVirtual.Id;
+                options = options with { SyncEnabled = true, CaptureDeviceId = captureId };
+            }
             options.Validate();
             if (!nic.IsAvailable()) throw new IOException("所选局域网地址已不可用，请刷新网卡列表。");
             if (options.HostPlayback) AudioDevices.ValidateRoute(options.CaptureDeviceId, options.OutputDeviceId);

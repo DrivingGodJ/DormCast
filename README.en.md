@@ -93,12 +93,12 @@
 
 ## Quick Start
 
-1. **Install the latest Release**
-   Download `DormCast-x.y.z-Setup-x64.exe` from [Releases](https://github.com/DrivingGodJ/DormCast/releases/latest) (**Windows 10 22H2 / Windows 11 x64**; self-contained with .NET and WinUI runtimes included).
-2. **Install the bundled official VB-CABLE driver (first use)**
-   Follow the setup guide to extract the unchanged official `VBCABLE_Driver_Pack46.zip`, run its installer as administrator, and reboot when prompted (isolates raw audio from delayed speaker playback; skip if already installed).
+1. **Install the latest Release (with automatic VB-CABLE setup)**
+   Download `DormCast-x.y.z-Setup-x64.exe` from [Releases](https://github.com/DrivingGodJ/DormCast/releases/latest) (**Windows 10 22H2 / Windows 11 x64**; self-contained with .NET and WinUI runtimes included). Setup detects whether **VB-CABLE** is already installed: if absent, it requires installing the virtual driver; if already present, it skips driver installation automatically. Uninstalling DormCast also uninstalls VB-CABLE.
+2. **Pick your physical output device (virtual cable auto-selected)**
+   Open DormCast and simply select your physical speakers or headphones; the virtual audio cable is selected automatically. If no virtual cable is detected, broadcasting is blocked and an installation guide is shown.
 3. **Start broadcasting & scan to listen**
-   Open DormCast, confirm the virtual capture endpoint and physical speaker, and click **Start Broadcast**. Connect other devices to the same Wi-Fi, scan the QR code, and tap Listen if browser autoplay is blocked.
+   Click **Start Broadcast**. Connect other devices to the same Wi-Fi, scan the QR code, and tap Listen if browser autoplay is blocked.
 
 <details>
 <summary><strong>📌 Persistent Join Identity &amp; LAN Security Boundaries</strong></summary>
