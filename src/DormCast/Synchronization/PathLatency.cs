@@ -8,11 +8,11 @@ public sealed class PathLatency
     public double StableMs { get; private set; }
     public void Observe(double value, double nowMs)
     {
-        _samples.Enqueue(value); while (_samples.Count > 9) _samples.Dequeue();
+        _samples.Enqueue(value); while (_samples.Count > 5) _samples.Dequeue();
         var sorted = _samples.Order().ToArray(); var median = sorted[(sorted.Length - 1) / 2];
         if (_samples.Count <= 3) { StableMs = _filtered = median; _last = nowMs; return; }
-        var alpha = 1 - Math.Exp(-Math.Clamp(nowMs - _last, 0, 3000) / 2500); _last = nowMs;
+        var alpha = 1 - Math.Exp(-Math.Clamp(nowMs - _last, 0, 3000) / 1500); _last = nowMs;
         _filtered += (median - _filtered) * alpha;
-        if (_samples.Count >= 3 && Math.Abs(_filtered - StableMs) >= 6) StableMs = Math.Round(_filtered / 5) * 5;
+        if (_samples.Count >= 3 && Math.Abs(_filtered - StableMs) >= 5) StableMs = Math.Round(_filtered / 2) * 2;
     }
 }

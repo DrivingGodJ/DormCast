@@ -16,5 +16,5 @@ assert.equal(delayPlan(340, 300, 0, 0).seconds, .04);
 assert.equal(delayPlan(340, 100, 100, 0).seconds, .14);
 assert.equal(delayPlan(100, 300, 0, 0).seconds, 0, 'negative compensating delay is never scheduled');
 assert.equal(delayPlan(9000, 100, 0, 0).seconds, 2, 'output history remains bounded');
-assert.ok(delayPlan(340, 100, 0, 0).duration >= 2.8 && delayPlan(340, 100, 0, 0).duration <= 3.2, 'large changes converge quickly while staying smoothly rate-limited');
+assert.ok(delayPlan(340, 100, 0, 0).duration >= 5.5 && delayPlan(340, 100, 0, 0).duration <= 6.5, 'large changes converge smoothly without provoking jitter buffer expansion');
 console.log('PASS NTP four timestamps, RTP timeline/wrap, stale rejection, group compensation and smooth bounded delay');

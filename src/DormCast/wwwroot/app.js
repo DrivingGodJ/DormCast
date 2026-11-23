@@ -2,8 +2,26 @@
 (() => {
   const el = id => document.getElementById(id);
   const tokenStorageKey = `DormCast.joinToken.${location.host}`;
+  function readCookie(name) {
+    const prefix = `${name}=`;
+    for (const part of document.cookie.split(';')) {
+      const trimmed = part.trim();
+      if (trimmed.startsWith(prefix)) return decodeURIComponent(trimmed.slice(prefix.length));
+    }
+    return '';
+  }
+  function saveToken(value) {
+    if (!value) return;
+    try { localStorage.setItem(tokenStorageKey, value); } catch {}
+    try { document.cookie = `DormCastJoin=${encodeURIComponent(value)}; path=/; max-age=31536000; samesite=strict`; } catch {}
+  }
+  function clearSavedToken() {
+    try { localStorage.removeItem(tokenStorageKey); } catch {}
+    try { document.cookie = 'DormCastJoin=; path=/; max-age=0; samesite=strict'; } catch {}
+  }
   let token = new URLSearchParams(location.hash.slice(1)).get('join') || '';
   if (!token) { try { token = localStorage.getItem(tokenStorageKey) || ''; } catch {} }
+  if (!token) token = readCookie('DormCastJoin');
   const clientName = window.DormCastAndroid ? 'Android 安卓客户端' : /iPhone|iPad/.test(navigator.userAgent) ? 'iPhone / iPad' : /Android/.test(navigator.userAgent) ? 'Android 浏览器' : /Macintosh/.test(navigator.userAgent) ? 'Mac 浏览器' : '电脑浏览器';
   const { SourceClock, sourceLatency, delayPlan } = window.DormCastSync;
   let ws, pc, audioContext, source, gain, fallback, stream, silentSink, delayNode, mediaOutput, mediaDestination;
@@ -66,11 +84,11 @@
       // Its buffer estimate never participates in choosing the slowest measured device.
       measurement = bufferEstimateMs + sourceClock.best.rtt / 2 + outputMs;
     }
-    naturalWindow.push(measurement); if (naturalWindow.length > 5) naturalWindow.shift();
+    naturalWindow.push(measurement); if (naturalWindow.length > 3) naturalWindow.shift();
     if (!fallbackTiming) measuredAt = performance.now();
     const sorted = [...naturalWindow].sort((a, b) => a - b); naturalMs = sorted[Math.floor(sorted.length / 2)];
     const corrected = naturalMs + hardwareMs;
-    const reportInterval = syncReady ? 900 : 300;
+    const reportInterval = syncReady ? 500 : 250;
     if (performance.now() - lastSyncReport > reportInterval) {
       send({ type: 'sync-report', data: { naturalMs: corrected, uncertaintyMs: sourceClock.best.rtt / 2, playing: connected && isPlaying() && !fallbackTiming } });
       lastSyncReport = performance.now();
@@ -105,7 +123,7 @@
       }
     }
     const instantaneousError = corrected + (directAudio ? 0 : addedDelaySeconds() * 1000) - playoutTargetMs;
-    displayError = displayError === null ? instantaneousError : displayError + (instantaneousError - displayError) * 0.12;
+    displayError = displayError === null ? instantaneousError : displayError + (instantaneousError - displayError) * 0.25;
     const error = displayError;
     el('syncStatus').textContent = document.hidden && serverCompensation ? '后台由主机持续补偿；实际播放测量需恢复前台确认。' : fallbackTiming ? '兼容播放：浏览器缺少源时间戳，缓冲估计无法保证同步。' : `${Math.abs(error) > 15 ? '正在平滑对齐' : '已按源时间线补偿'} · 平滑估计偏差 ${error > 0 ? '+' : ''}${Math.round(error)}ms`;
     const direction = syncDirection === 'decreasing' ? `正在下调至 ${Math.round(desiredTargetMs)}ms。` : syncDirection === 'settling' ? `观察稳定后下调至 ${Math.round(desiredTargetMs)}ms。` : '';
@@ -382,7 +400,7 @@
     switch (message.type) {
       case 'welcome': {
         wsReady = true;
-        try { if (token) localStorage.setItem(tokenStorageKey, token); } catch {}
+        saveToken(token);
         el('title').textContent = message.name; document.title = `${message.name} · 一起听`;
         void media.update(message.nowPlaying, token, message.name);
         applyHostState(message.nowPlaying, message.hostControl);
@@ -419,7 +437,7 @@
         await peer.setLocalDescription(offer);
         send({ type: 'offer', sdp: offer.sdp });
         send({ type: 'visibility', hidden: document.hidden });
-        statsTimer = setInterval(stats, 2000); syncTimer = setInterval(syncTick, 250);
+        statsTimer = setInterval(stats, 2000); syncTimer = setInterval(syncTick, 200);
         pingTimer = setInterval(() => {
           if (sourceClock.samples.length < 6 || performance.now() - lastPing >= 2000) { lastPing = performance.now(); send({ type: 'ping', clientMs: lastPing }); }
         }, 250);
@@ -480,7 +498,7 @@
     socket.onclose = e => {
       if (currentGeneration !== generation) return;
       if (e.code === 1008) {
-        try { localStorage.removeItem(tokenStorageKey); } catch {}
+        clearSavedToken();
         ended = true; void cleanup(); status('加入链接已失效', '请重新扫描主机当前二维码。'); el('listen').disabled = true;
       } else reconnect('主机连接中断，正在重试。请确保与广播主机连接在同一个 Wi-Fi / 局域网中。');
     };

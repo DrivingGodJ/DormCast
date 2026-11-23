@@ -34,9 +34,9 @@ static class FeatureChecks
         Check(background.GetState(60000).MeasuredDevices == 1 && background.GetState(60000).TargetMs == 500, "background timer suspension preserves a connected device's floor");
         var hold = new HostCompensation(); hold.SetDesired(160); Check(hold.AppliedMs == 160, "initial sender hold is seeded before the client becomes audible"); hold.SetDesired(20);
         for (var t = 0; t <= 1000; t += 50) hold.Advance(t);
-        Check(hold.AppliedMs is >= 75 and <= 85, $"per-device sender compensation converges faster (~80ms/s) while staying smooth (at 1s: {hold.AppliedMs:F1}ms)");
-        for (var t = 1050; t <= 2200; t += 50) hold.Advance(t);
-        Check(Math.Abs(hold.AppliedMs - 20) < 0.1, "sender compensation finishes converging quickly without browser timers");
+        Check(hold.AppliedMs is >= 115 and <= 125, $"per-device sender compensation converges at NetEQ-safe 40ms/s (at 1s: {hold.AppliedMs:F1}ms)");
+        for (var t = 1050; t <= 4000; t += 50) hold.Advance(t);
+        Check(Math.Abs(hold.AppliedMs - 20) < 0.1, "sender compensation finishes converging smoothly without browser timers");
         var sampleDevices = new[]
         {
             new AudioDeviceChoice("v1", "VoiceMeeter Input (VB-Audio VoiceMeeter VAIO)"),
@@ -61,7 +61,7 @@ static class FeatureChecks
         var update = GitHubReleaseClient.Parse(Encoding.UTF8.GetBytes(Release()), new Version(0, 4, 0))!;
         Check(update.Version == new Version(0, 5, 0) && GitHubReleaseClient.Parse(Encoding.UTF8.GetBytes(Release()), new Version(0, 5, 0)) == null, "release comparison handles newer and current versions numerically");
         var appVer = DormCast.Hosting.BroadcastHost.AppVersion;
-        Check(appVer.Revision == -1 && appVer >= new Version(0, 7, 1), $"assembly AppVersion is normalized 3-part version ({appVer})");
+        Check(appVer.Revision == -1 && appVer >= new Version(0, 7, 2), $"assembly AppVersion is normalized 3-part version ({appVer})");
         var selfRelease = JsonSerializer.Serialize(new { draft = false, prerelease = false, tag_name = $"v{appVer}", body = "Self", assets = new[] { new { name = $"DormCast-{appVer}-Setup-x64.exe", size = payload.Length, browser_download_url = $"https://github.com/DrivingGodJ/DormCast/releases/download/v{appVer}/DormCast-{appVer}-Setup-x64.exe", digest = "sha256:" + digest } } });
         Check(GitHubReleaseClient.Parse(Encoding.UTF8.GetBytes(selfRelease), appVer) == null, "current release does not prompt to update to itself");
         Check(GitHubReleaseClient.Parse(Encoding.UTF8.GetBytes(Release(prerelease: true)), new Version(0, 4, 0)) == null, "automatic updater ignores prereleases");

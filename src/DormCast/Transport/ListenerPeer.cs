@@ -30,9 +30,10 @@ public sealed class ListenerPeer : IAsyncDisposable
     public double PlannedSendDelayMs => _compensation.DesiredMs;
     public void SetCompensation(double milliseconds) => _compensation.SetDesired(milliseconds);
 
-    public ListenerPeer(LanInterface nic, IPAddress signalAddress, int frameMs)
+    public ListenerPeer(LanInterface nic, IPAddress signalAddress, int frameMs, double initialDelayMs = 0)
     {
         _nic = nic;
+        if (initialDelayMs > 0) _compensation.SetDesired(initialDelayMs);
         _frames = Channel.CreateBounded<EncodedFrame>(new BoundedChannelOptions(2100 / frameMs + 2)
         { FullMode = BoundedChannelFullMode.DropOldest, SingleReader = true, SingleWriter = true }, _ => Interlocked.Increment(ref _dropped));
         _pc = new RTCPeerConnection(new RTCConfiguration
