@@ -1,4 +1,4 @@
-param([string]$Version = '0.7.3')
+param([string]$Version = '0.7.4')
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Net.Http
 $workspace = (Resolve-Path -LiteralPath '.').Path

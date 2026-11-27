@@ -1,5 +1,5 @@
 #ifndef AppVersion
-  #define AppVersion "0.7.3"
+  #define AppVersion "0.7.4"
 #endif
 #ifndef PayloadDir
   #define PayloadDir "..\artifacts\DormCast-" + AppVersion + "-win-x64"

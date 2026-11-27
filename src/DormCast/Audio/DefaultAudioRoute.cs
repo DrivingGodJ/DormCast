@@ -29,14 +29,15 @@ public sealed class DefaultAudioRoute : IDisposable
         try { client.SetDefaultEndpoint(id, role); }
         finally { Marshal.ReleaseComObject(client); }
     }
-    public static DefaultAudioRoute SwitchTo(string virtualId, string physicalOutputId)
+    public static DefaultAudioRoute SwitchTo(string virtualId, string? physicalOutputId)
     {
         RecoverIfNeeded();
         if (File.Exists(RecoveryPath)) throw new InvalidOperationException("已有主机同步广播正在使用默认音频路由，请先停止它。");
         var originals = new Dictionary<Role, string> { [Role.Console] = GetDefault(Role.Console), [Role.Multimedia] = GetDefault(Role.Multimedia) };
         // Driver setup may already have selected the silent cable as default. Restore the chosen
         // real speaker in that case, so stopping the monitor cannot leave Windows inaudible.
-        foreach (var role in originals.Keys.ToArray()) if (originals[role] == virtualId) originals[role] = physicalOutputId;
+        if (!string.IsNullOrWhiteSpace(physicalOutputId))
+            foreach (var role in originals.Keys.ToArray()) if (originals[role] == virtualId) originals[role] = physicalOutputId;
         using var process = Process.GetCurrentProcess();
         var recovery = new Recovery(process.Id, process.StartTime.ToUniversalTime().Ticks, virtualId, originals);
         Directory.CreateDirectory(Path.GetDirectoryName(RecoveryPath)!);

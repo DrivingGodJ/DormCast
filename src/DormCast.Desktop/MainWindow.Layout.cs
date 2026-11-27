@@ -14,7 +14,8 @@ public sealed partial class MainWindow
     readonly Image _cover = new() { Width = 190, Height = 190, Stretch = Stretch.UniformToFill }, _qr = new() { Width = 184, Height = 184, Stretch = Stretch.Uniform };
     readonly TextBlock _coverFallback = Label("◉", 66);
     readonly TextBox _name = new() { Header = "广播名称" }, _audioQuality = new() { Header = "音频品质（固定）", Text = "20ms · 256kbps 高音质", IsReadOnly = true }, _url = new() { IsReadOnly = true, TextWrapping = TextWrapping.Wrap, AcceptsReturn = true, MinHeight = 56, Text = "开始后显示可收藏的固定网址" };
-    readonly ComboBox _nic = new() { Header = "局域网卡", HorizontalAlignment = HorizontalAlignment.Stretch }, _output = new() { Header = "输出设备（本机扬声器 / 耳机）", HorizontalAlignment = HorizontalAlignment.Stretch };
+    readonly ComboBox _nic = new() { Header = "局域网卡", HorizontalAlignment = HorizontalAlignment.Stretch }, _captureDevice = new() { Header = "采集设备（虚拟声卡 / MIXLINE 等输入）", HorizontalAlignment = HorizontalAlignment.Stretch }, _output = new() { Header = "真实输出设备（本机扬声器 / 耳机）", HorizontalAlignment = HorizontalAlignment.Stretch };
+    readonly CheckBox _hostPlayback = new() { Content = "电脑本机发声（开启时强制与所有设备统一同步）", IsChecked = true };
     readonly NumberBox _port = new() { Header = "端口", Minimum = 1024, Maximum = 65535, SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Compact };
     readonly Slider _slider = new() { Minimum = 0, Maximum = 100, StepFrequency = 1, IsEnabled = false };
     readonly RadioButtons _joinMode = new() { Header = "接入方式（同时可用）", MaxColumns = 2, Items = { "mDNS 固定", "IPv4 兼容" }, SelectedIndex = 0, IsEnabled = false };
@@ -45,8 +46,12 @@ public sealed partial class MainWindow
         Cell(hero, Card(Stack(Label("扫码，一起听", 20), _joinMode, new Border { Child = _qr, Background = Brush(255, 255, 255), CornerRadius = new CornerRadius(8), Padding = new Thickness(8), HorizontalAlignment = HorizontalAlignment.Center }, _url, _copy, _joinHint)), 1); content.Children.Add(hero);
         var config = Columns(1.2, 1.5, 0.7, 1.15); Cell(config, _name, 0); Cell(config, _nic, 1); Cell(config, _port, 2); Cell(config, _audioQuality, 3);
         _driverHelp.Visibility = Visibility.Collapsed;
-        var audioRow = Columns(1.35, 1); Cell(audioRow, _output, 0); var virtualPanel = Stack(_virtualStatus, _driverHelp); virtualPanel.VerticalAlignment = VerticalAlignment.Bottom; Cell(audioRow, virtualPanel, 1);
-        var startRow = Columns(1, 1); Cell(startRow, Stack(_network, _refresh), 0); _start.HorizontalAlignment = HorizontalAlignment.Stretch; _start.FontSize = 18; _start.MinHeight = 56; Cell(startRow, _start, 1); content.Children.Add(Card(Stack(config, audioRow, startRow)));
+        var audioRow = Columns(1, 1); Cell(audioRow, _captureDevice, 0); Cell(audioRow, _output, 1);
+        var hostAudioRow = Columns(1, 1);
+        var virtualPanel = Stack(_virtualStatus, _driverHelp); virtualPanel.VerticalAlignment = VerticalAlignment.Center;
+        _hostPlayback.VerticalAlignment = VerticalAlignment.Center;
+        Cell(hostAudioRow, _hostPlayback, 0); Cell(hostAudioRow, virtualPanel, 1);
+        var startRow = Columns(1, 1); Cell(startRow, Stack(_network, _refresh), 0); _start.HorizontalAlignment = HorizontalAlignment.Stretch; _start.FontSize = 18; _start.MinHeight = 56; Cell(startRow, _start, 1); content.Children.Add(Card(Stack(config, audioRow, hostAudioRow, startRow)));
         var metrics = Columns(1, 1); Cell(metrics, Stack(Label("正在收听", 13), _listeners), 0); Cell(metrics, Stack(Label("统一延迟目标", 13), _sync), 1); content.Children.Add(Card(metrics));
         var diagnostics = ActionButton("导出诊断"); diagnostics.Click += async (_, _) => await SaveDiagnosticsAsync(); content.Children.Add(new Expander { Header = "设备与同步详情", HorizontalAlignment = HorizontalAlignment.Stretch, Content = Stack(_clientCards, Label("基础路径、播放时间线和偏差均为软件估计；浏览器输出值不一定包含后台媒体和蓝牙的额外缓冲。", 12), diagnostics) });
         var scroll = new ScrollViewer { Content = content, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled }; Grid.SetRow(scroll, 2); _root.Children.Add(scroll); Grid.SetRow(_detail, 3); _root.Children.Add(_detail);

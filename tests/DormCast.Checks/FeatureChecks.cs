@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using DormCast.Audio;
+using DormCast.Hosting;
 using DormCast.Networking;
 using DormCast.Synchronization;
 using DormCast.Updates;
@@ -44,8 +45,22 @@ static class FeatureChecks
             new AudioDeviceChoice("p1", "扬声器 (Realtek(R) Audio)"),
             new AudioDeviceChoice("p2", "耳机 (USB Audio)")
         };
+        var sampleInputs = new[]
+        {
+            new AudioDeviceChoice("i1", "MIXLINE Stream", CaptureEndpointFlow.CaptureInput),
+            new AudioDeviceChoice("i2", "麦克风 (USB Mic)", CaptureEndpointFlow.CaptureInput)
+        };
         Check(AudioDevices.FindVirtualCaptureDevice(sampleDevices)?.Id == "v2", "auto virtual cable selection prefers CABLE Input");
-        Check(AudioDevices.FindVirtualCaptureDevice(sampleDevices.Where(d => !d.IsVirtual)) == null, "missing virtual cable is detected so broadcast can be blocked");
+        Check(AudioDevices.FindVirtualCaptureDevice(sampleDevices.Where(d => !d.IsVirtual)) == null, "missing virtual cable is detected so installer/guide can prompt");
+        var captureList = AudioDevices.CaptureDevices(sampleDevices, sampleInputs);
+        Check(captureList.Count == 4 && captureList[0].Id == "v2" && captureList.Any(d => d.Id == "i1" && d.IsCaptureInput), "capture device list includes virtual cables and custom input endpoints");
+        Check(AudioDevices.ResolveCaptureDevice("i1", sampleDevices, sampleInputs)?.Id == "i1", "capture device resolver honors saved custom input endpoint");
+        Check(AudioDevices.ResolveCaptureDevice(null, sampleDevices, sampleInputs)?.Id == "v2", "capture device resolver prefers CABLE Input when nothing is saved");
+        Check(AudioDevices.ResolveCaptureDevice(null, sampleDevices.Where(d => !d.IsVirtual), sampleInputs) == null, "capture device resolver never auto-picks a microphone when VB-CABLE is missing");
+        Check(AudioDevices.ValidateRoute("i1", "p2", hostPlayback: true, sampleDevices, sampleInputs).Id == "i1", "custom input endpoint validates cleanly with host playback enabled");
+        Check(AudioDevices.ValidateRoute("i1", null, hostPlayback: false, sampleDevices, sampleInputs).Id == "i1", "custom input endpoint validates without physical output when host playback is off");
+        try { AudioDevices.ValidateRoute("i1", null, hostPlayback: true, sampleDevices, sampleInputs); throw new Exception("host playback without output accepted"); } catch (ArgumentException) { Console.WriteLine("PASS host playback requires real output device"); }
+        try { new BroadcastOptions(SyncEnabled: false, HostPlayback: true, CaptureDeviceId: "i1", OutputDeviceId: "p1").Validate(); throw new Exception("unsynced host playback accepted"); } catch (ArgumentException) { Console.WriteLine("PASS computer sound enforces unified sync"); }
         var physicalOnly = AudioDevices.PhysicalOutputDevices(sampleDevices);
         Check(physicalOnly.Count == 2 && physicalOnly.All(d => !d.IsVirtual), "selectable outputs include only physical audio devices");
         Check(AudioDevices.ResolvePhysicalOutput("p2", sampleDevices, "p1")?.Id == "p2" && AudioDevices.ResolvePhysicalOutput("v2", sampleDevices, "p1")?.Id == "p1", "physical output resolver ignores virtual devices and honors saved physical output");
@@ -61,7 +76,7 @@ static class FeatureChecks
         var update = GitHubReleaseClient.Parse(Encoding.UTF8.GetBytes(Release()), new Version(0, 4, 0))!;
         Check(update.Version == new Version(0, 5, 0) && GitHubReleaseClient.Parse(Encoding.UTF8.GetBytes(Release()), new Version(0, 5, 0)) == null, "release comparison handles newer and current versions numerically");
         var appVer = DormCast.Hosting.BroadcastHost.AppVersion;
-        Check(appVer.Revision == -1 && appVer >= new Version(0, 7, 3), $"assembly AppVersion is normalized 3-part version ({appVer})");
+        Check(appVer.Revision == -1 && appVer >= new Version(0, 7, 4), $"assembly AppVersion is normalized 3-part version ({appVer})");
         var selfRelease = JsonSerializer.Serialize(new { draft = false, prerelease = false, tag_name = $"v{appVer}", body = "Self", assets = new[] { new { name = $"DormCast-{appVer}-Setup-x64.exe", size = payload.Length, browser_download_url = $"https://github.com/DrivingGodJ/DormCast/releases/download/v{appVer}/DormCast-{appVer}-Setup-x64.exe", digest = "sha256:" + digest } } });
         Check(GitHubReleaseClient.Parse(Encoding.UTF8.GetBytes(selfRelease), appVer) == null, "current release does not prompt to update to itself");
         Check(GitHubReleaseClient.Parse(Encoding.UTF8.GetBytes(Release(prerelease: true)), new Version(0, 4, 0)) == null, "automatic updater ignores prereleases");

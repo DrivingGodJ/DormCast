@@ -140,13 +140,14 @@ public sealed partial class MainWindow
             {
                 XamlRoot = _root.XamlRoot,
                 RequestedTheme = _root.ActualTheme,
-                Title = "未检测到虚拟声卡，无法启动广播",
+                Title = "未检测到虚拟声卡（VB-CABLE）",
                 Content = Label(
-                    "宿舍之音需要虚拟声卡（VB-CABLE）由软件自动采集声音并同步到所有设备。当前未检测到虚拟声卡，广播按钮已锁定。\n\n" +
+                    "普通用户建议安装虚拟声卡（VB-CABLE），由软件自动接管采集并同步到所有设备。\n\n" +
                     "请按以下任一方式完成安装：\n" +
                     "1. 点击下方「立即安装虚拟声卡」，在管理员授权后点击 Install Driver 完成安装；\n" +
                     "2. 或重新运行 DormCast 安装程序（会自动引导安装虚拟声卡）；\n" +
                     "3. 安装完成后按提示重启电脑，再打开软件或点击「重新检测」。\n\n" +
+                    "如果你使用的是 Logitech MIXLINE / VoiceMeeter 等虚拟调音台，也可以直接关闭此提示并在「采集设备」中选择对应的输入端点（如 MIXLINE Stream）。\n" +
                     "若软件目录内不含驱动包，也可前往 https://vb-audio.com/Cable/ 下载官方 VB-CABLE。", 14),
                 PrimaryButtonText = "立即安装虚拟声卡",
                 SecondaryButtonText = "重新检测",

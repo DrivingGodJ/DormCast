@@ -27,27 +27,28 @@ public sealed class BroadcastHost : IAsyncDisposable
     public Exception? AudioFailure => _audio?.Failure;
     public object[] Clients => _server?.Clients ?? [];
     public SyncState? SyncState => _server?.Synchronization.GetState(_audio!.NowMs);
-    public string MonitorStatus => _monitor?.Status ?? "主机未启用延迟播放";
+    public string MonitorStatus => _monitor?.Status ?? "电脑当前仅广播不发声";
     public async Task StartAsync(BroadcastOptions options, LanInterface nic, IHostController? controller = null)
     {
         await _lifecycle.WaitAsync().ConfigureAwait(false);
         try
         {
             if (Running) return;
-            if (options.HostPlayback)
+            AudioDeviceChoice? capture = null;
+            List<AudioDeviceChoice>? renders = null;
+            if (!string.IsNullOrWhiteSpace(options.CaptureDeviceId) || options.HostPlayback)
             {
-                var devices = AudioDevices.RenderDevices();
-                var autoVirtual = AudioDevices.FindVirtualCaptureDevice(devices);
-                if (autoVirtual == null) throw new InvalidOperationException("未检测到虚拟声卡（VB-CABLE），无法启动广播。请先安装虚拟声卡后再重试。");
-                var captureId = !string.IsNullOrWhiteSpace(options.CaptureDeviceId) && devices.Any(d => d.Id == options.CaptureDeviceId && d.IsVirtual)
-                    ? options.CaptureDeviceId
-                    : autoVirtual.Id;
-                options = options with { SyncEnabled = true, CaptureDeviceId = captureId };
+                renders = AudioDevices.RenderDevices();
+                var inputs = AudioDevices.InputDevices();
+                var captureId = string.IsNullOrWhiteSpace(options.CaptureDeviceId)
+                    ? AudioDevices.FindVirtualCaptureDevice(renders)?.Id
+                    : options.CaptureDeviceId;
+                capture = AudioDevices.ValidateRoute(captureId, options.OutputDeviceId, options.HostPlayback, renders, inputs);
+                options = options with { SyncEnabled = true, CaptureDeviceId = capture.Id };
             }
             options.Validate();
             if (!nic.IsAvailable()) throw new IOException("所选局域网地址已不可用，请刷新网卡列表。");
-            if (options.HostPlayback) AudioDevices.ValidateRoute(options.CaptureDeviceId, options.OutputDeviceId);
-            var audio = new AudioEngine(options.FrameMs, options.CaptureDeviceId) { EncodeLocalMonitor = options.HostPlayback };
+            var audio = new AudioEngine(options.FrameMs, capture?.Id) { EncodeLocalMonitor = options.HostPlayback };
             var server = new BroadcastServer(options, nic, audio, controller);
             HostMonitor? monitor = null;
             DefaultAudioRoute? route = null;
@@ -58,8 +59,16 @@ public sealed class BroadcastHost : IAsyncDisposable
                 if (options.HostPlayback)
                 {
                     monitor = new HostMonitor(audio, options.OutputDeviceId!, server.Synchronization, options.HostHardwareCorrectionMs); monitor.Start();
-                    route = DefaultAudioRoute.SwitchTo(options.CaptureDeviceId!, options.OutputDeviceId!);
-                    volumeLink = new BroadcastVolumeLink(audio, options.CaptureDeviceId!, options.OutputDeviceId!); volumeLink.Start();
+                }
+                if (capture?.IsVirtual == true)
+                {
+                    var fallbackOutput = options.OutputDeviceId ?? AudioDevices.ResolvePhysicalOutput(null, renders)?.Id;
+                    route = DefaultAudioRoute.SwitchTo(capture.Id, fallbackOutput);
+                    if (options.HostPlayback && !string.IsNullOrWhiteSpace(options.OutputDeviceId))
+                    {
+                        volumeLink = new BroadcastVolumeLink(audio, capture.Id, options.OutputDeviceId);
+                        volumeLink.Start();
+                    }
                 }
                 _audio = audio; _server = server; _monitor = monitor; _route = route; _volumeLink = volumeLink;
                 AppLog.Write($"Broadcast started on {nic.Address}:{options.Port}");

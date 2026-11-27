@@ -14,17 +14,23 @@ public sealed record BroadcastOptions(string Name = "宿舍之音", int Port = 8
         if (FrameMs is not (10 or 20)) throw new ArgumentException("Opus 帧长须为 10 或 20ms。");
         if (BufferMs is < 20 or > 200) throw new ArgumentException("接收缓冲目标须在 20–200ms 之间。");
         if (HostHardwareCorrectionMs is < 0 or > 1000) throw new ArgumentException("主机硬件补偿须在 0–1000ms 之间。");
-        if (HostPlayback && !SyncEnabled) throw new ArgumentException("主机延迟播放需要启用统一同步。");
+        if (HostPlayback && !SyncEnabled) throw new ArgumentException("电脑发声时必须启用统一同步。");
         if (HostPlayback && (string.IsNullOrWhiteSpace(CaptureDeviceId) || string.IsNullOrWhiteSpace(OutputDeviceId) || CaptureDeviceId == OutputDeviceId))
-            throw new ArgumentException("主机同步播放需要不同的虚拟采集设备与实际扬声器。");
+            throw new ArgumentException("电脑发声时需要分别选择采集设备与本机真实输出设备，且两者不能相同。");
     }
 
     static string SettingsPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DormCast", "settings.json");
     public static bool HasSavedSettings => File.Exists(SettingsPath);
     public static BroadcastOptions Load()
     {
-        try { var result = JsonSerializer.Deserialize<BroadcastOptions>(File.ReadAllText(SettingsPath)) ?? new(); result.Validate(); return result with { FrameMs = AudioEngine.DefaultFrameMs }; }
-        catch { return new(); }
+        try
+        {
+            if (!File.Exists(SettingsPath)) return new(HostPlayback: true);
+            var result = JsonSerializer.Deserialize<BroadcastOptions>(File.ReadAllText(SettingsPath)) ?? new(HostPlayback: true);
+            result.Validate();
+            return result with { FrameMs = AudioEngine.DefaultFrameMs, SyncEnabled = true };
+        }
+        catch { return new(HostPlayback: true); }
     }
     public void Save()
     {

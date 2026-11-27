@@ -34,12 +34,13 @@ public sealed class LoopbackSource(PcmRing ring, string? deviceId = null) : IDis
                 using var enumerator = new MMDeviceEnumerator();
                 using var device = deviceId == null ? enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia) : enumerator.GetDevice(deviceId);
                 var id = device.ID;
+                var isCaptureEndpoint = device.DataFlow == DataFlow.Capture;
                 using var client = device.AudioClient;
                 using var packetReady = new EventWaitHandle(false, EventResetMode.AutoReset);
                 var format = WaveFormat.CreateIeeeFloatWaveFormat(48000, 2);
-                client.Initialize(AudioClientShareMode.Shared,
-                    AudioClientStreamFlags.Loopback | AudioClientStreamFlags.EventCallback | AudioClientStreamFlags.AutoConvertPcm | AudioClientStreamFlags.SrcDefaultQuality,
-                    200000, 0, format, Guid.Empty);
+                var streamFlags = AudioClientStreamFlags.EventCallback | AudioClientStreamFlags.AutoConvertPcm | AudioClientStreamFlags.SrcDefaultQuality;
+                if (!isCaptureEndpoint) streamFlags |= AudioClientStreamFlags.Loopback;
+                client.Initialize(AudioClientShareMode.Shared, streamFlags, 200000, 0, format, Guid.Empty);
                 client.SetEventHandle(packetReady.SafeWaitHandle.DangerousGetHandle());
                 Volatile.Write(ref _actualBufferMs, client.BufferSize / 48.0);
                 var capture = client.AudioCaptureClient;
@@ -49,7 +50,7 @@ public sealed class LoopbackSource(PcmRing ring, string? deviceId = null) : IDis
                 {
                     client.Start();
                     _deviceName = device.FriendlyName;
-                    _status = "共享回环 · 48kHz · 立体声";
+                    _status = isCaptureEndpoint ? "输入设备采集 · 48kHz · 立体声" : "共享回环 · 48kHz · 立体声";
                     var nextDeviceCheck = Environment.TickCount64 + 500;
                     while (!_stop.IsCancellationRequested)
                     {
